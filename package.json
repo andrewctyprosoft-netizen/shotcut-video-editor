@@ -1,0 +1,28 @@
+{
+  "name": "shotcut",
+  "productName": "ShotCut",
+  "version": "0.2.0",
+  "description": "Local CapCut-style video editor with accurate auto captions and text-based editing (Electron + FFmpeg + faster-whisper).",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "node dev/tools/dev.mjs",
+    "build": "vite build",
+    "start": "vite build && electron .",
+    "test": "node --test \"dev/tests/*.test.mjs\"",
+    "samples": "node dev/tools/make-samples.mjs",
+    "smoke": "vite build && node dev/tools/smoke.mjs",
+    "e2e": "vite build && node dev/tools/e2e.mjs"
+  },
+  "dependencies": {
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^45.0.0",
+    "vite": "^8.3.5"
+  }
+}

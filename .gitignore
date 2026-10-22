@@ -1,0 +1,49 @@
+# Workspace standard .gitignore — copy into a new project as .gitignore
+# Keep only source, data and documented deliverables under version control.
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.ipynb_checkpoints/
+*.egg-info/
+.venv/
+venv/
+
+# Node / web
+node_modules/
+.next/
+.turbo/
+.parcel-cache/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Secrets — never commit
+.env
+.env.*
+*.pem
+.clasp.json
+.clasprc.json
+
+# Local tool state
+.claude/
+.cache/
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+desktop.ini
+~$*
+*.tmp
+*.swp
+*~
+*.log
+
+# ShotCut
+build/
+dev/samples/
+dev/out/
