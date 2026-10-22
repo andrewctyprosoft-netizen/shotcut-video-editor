@@ -40,15 +40,20 @@ See the milestones in [docs/plan.md](docs/plan.md).
 
 ## Run
 
-```bash
-npm install
-```
+Double-click **`ShotCut.bat`** in the app folder.
+To open a project directly, drop a `.shotcut` file onto it.
+
+- The first run installs the app's components (`npm install` and the Electron runtime, about 100 MB), so it needs internet once.
+- Each launch rebuilds the interface (about a second), then the console window closes and ShotCut opens.
+- It warns if Node.js is missing, or if FFmpeg is not on PATH.
+- For a desktop icon: right-click `ShotCut.bat` > **Send to** > **Desktop (create shortcut)**.
+
+From a terminal, the same thing is:
 
 ```bash
 npm start
 ```
 
-`npm start` builds the interface and opens the app.
 For development with hot reload, use `npm run dev`.
 
 ## Use
@@ -77,6 +82,7 @@ Keys: Space play/pause · S split · Del delete clip · ←/→ one frame · Shi
 | `asr/align.py` | Wraps the aligner to return timed words with caption breaks |
 | `dev/` | Tests, sample maker, smoke and end-to-end checks, dev server launcher |
 | `docs/plan.md` | Architecture, milestones, risks |
+| `ShotCut.bat` | Double-click launcher: installs on first run, rebuilds the interface, opens the app (CRLF, see `.gitattributes`) |
 
 ## Tests
 

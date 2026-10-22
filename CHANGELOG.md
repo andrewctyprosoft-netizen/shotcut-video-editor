@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- `ShotCut.bat`: double-click launcher (first-run install, interface rebuild, opens a dropped `.shotcut`); `.gitattributes` keeps it CRLF.
+
 ## 0.2.0 — 2026-10-22
 
 - Timeline: drag a clip's edge to trim (live preview, snaps to the playhead and clip starts, playhead follows the edge); drag a clip to reorder (drop marker); each drag is one undo step.
