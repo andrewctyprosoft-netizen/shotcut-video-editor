@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Images and GIFs can be stretched to any length (the limit was one hour).
 - Fix: Ctrl/Shift+click on a clip, image or audio item dropped the captions picked with a box select, and Ctrl/Shift+click on a caption dropped the picked clips; now both kinds stay. Ctrl/Shift+click on a clip's trim edge (most of a short clip when zoomed out) replaced the selection; it now adds or removes the clip too.
 - Box select: drag on empty timeline space (or across auto captions) to draw a box; every clip, layer item and caption it touches, on any track, is selected live, and the view scrolls at the edges. Ctrl/Shift+drag adds to the selection; a click on empty space still clears it and seeks. Delete removes the selected clips, items and imported subtitle lines in one undo step.
 - Crop window: **Crop** in the timeline toolbar (next to Split) crops the selected layers, one or several (Ctrl/Shift+click on the timeline or in the preview); ratio presets keep their shape while dragging; other layers are untouched. Replaces the crop mode in the preview.

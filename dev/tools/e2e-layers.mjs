@@ -375,4 +375,13 @@ async function run({ evaluate, waitFor, drag, click, clickAt, rect, shot, send }
   check('long media: zoomed in, only the visible ruler labels exist', zIn.pps > 20 && zoomTicks < 120, `${zIn.pps.toFixed(1)} px/s, ${zoomTicks} labels`);
   await click('Fit');
   await shot('e2e-l8-long-fit');
+
+  // 18. An image stretched past an hour (to the end of the 70-minute file) by dragging its right edge.
+  await evaluate("document.querySelector('.tl-scroll').scrollTop = 0");
+  const logoEdge = await rect('[data-clip="logo1"]'); // 4 px wide at this zoom: press its last pixel (the right handle)
+  const audioEnd = { right: await evaluate("Math.max(...[...document.querySelectorAll('.lane.audio .clip')].map((el) => el.getBoundingClientRect().right))") };
+  await drag(logoEdge.right - 1, logoEdge.y, audioEnd.right - 1, logoEdge.y, 20);
+  s = await S();
+  const logoEnd = item(s, 'logo1').start + item(s, 'logo1').out - item(s, 'logo1').in;
+  check('stretch: an image drags past one hour', logoEnd > 4000, `${(logoEnd / 60).toFixed(1)} min`);
 }

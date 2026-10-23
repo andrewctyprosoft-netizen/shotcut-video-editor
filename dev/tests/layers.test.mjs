@@ -19,6 +19,16 @@ test('images and GIFs get a default length that can be stretched; no speed chang
   assert.equal(totalDuration(p), 47);
 });
 
+test('a still has no length limit: an image can run under a 70-minute podcast, or for 10 hours', () => {
+  let p = addItem(addMedia(projectWith(media('v', 10)), image('logo')), 'logo', 0, { id: 'bg' });
+  p = trimItem(p, 'bg', 'out', 4234.4);
+  assert.equal(itemSpan(findElement(p, 'bg').el, 30).end, 4234.4);
+  p = updateElement(p, 'bg', { out: 36000 });
+  assert.equal(totalDuration(p), 36000);
+  p = updateElement(p, p.clips[0].id, { out: 1e9 }); // a video still stops at its own end
+  assert.equal(p.clips[0].out, 10);
+});
+
 test('addItem picks a free track of the right kind, or adds one in front', () => {
   let p = projectWith(media('v', 10));
   p = addMedia(addMedia(addMedia(p, image('logo')), gif('spin')), audio('music', 30));

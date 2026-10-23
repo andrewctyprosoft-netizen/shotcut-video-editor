@@ -25,9 +25,8 @@ export const QUALITIES = ['high', 'standard', 'small'];
 
 /** Shortest clip the editor keeps, in seconds. */
 export const MIN_CLIP = 0.1;
-/** Default length of an image on the timeline, and the longest a still or looping GIF may run. */
+/** Default length of an image on the timeline. Stills and looping GIFs can be stretched to any length. */
 export const STILL_LENGTH = 5;
-export const MAX_STILL = 3600;
 const EPS = 1e-6;
 export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
@@ -803,7 +802,7 @@ function naturalLength(m) {
 
 function clampClip(c, media) {
   const still = isStill(media);
-  const dur = still ? MAX_STILL : media?.duration ?? c.out;
+  const dur = still ? Infinity : media?.duration ?? c.out;
   const speed = still ? 1 : Math.min(4, Math.max(0.25, Number(c.speed) || 1));
   let inT = Math.min(Math.max(Number(c.in) || 0, 0), Math.max(dur - MIN_CLIP, 0));
   let outT = Math.min(Math.max(Number(c.out) || 0, inT + MIN_CLIP), dur);
