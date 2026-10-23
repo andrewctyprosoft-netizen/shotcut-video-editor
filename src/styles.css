@@ -51,6 +51,7 @@ code { background: #121317; padding: 0 4px; border-radius: 4px; }
 .app {
   display: grid;
   grid-template-rows: 46px minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr); /* a wide (zoomed-in) timeline scrolls instead of widening the window */
   height: 100vh;
 }
 
@@ -227,11 +228,12 @@ fieldset.plain:disabled { opacity: 0.5; }
 .seg button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
 
 /* timeline */
-.timeline { display: flex; flex-direction: column; border-top: 1px solid var(--line); background: var(--panel); min-height: 0; }
+.timeline { display: flex; flex-direction: column; border-top: 1px solid var(--line); background: var(--panel); min-height: 0; min-width: 0; }
 .tl-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
 .tl-toolbar .grow { flex: 1; }
 .zoom { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .zoom input { width: 140px; }
+.zoom button { padding: 1px 8px; }
 .tl-scroll { flex: 1; overflow: auto; position: relative; }
 .tl-inner { position: relative; min-height: 100%; padding-bottom: 6px; }
 .row { display: flex; }
@@ -247,6 +249,7 @@ button.icon.off { opacity: 0.4; }
 button.icon.danger:hover { color: var(--danger); }
 .lane { position: relative; flex: 1; margin: 3px 0; }
 .ruler { position: relative; flex: 1; height: 24px; border-bottom: 1px solid var(--line); cursor: ew-resize; }
+.row.ruler-row { position: sticky; top: 0; z-index: 7; background: var(--panel); } /* the time scale stays visible when the tracks scroll */
 .row.captions .lane { height: 28px; }
 .row.layer .lane { height: 40px; }
 .row.main .lane { height: 60px; }

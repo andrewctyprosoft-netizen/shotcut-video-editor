@@ -9,7 +9,7 @@ import { writeLayersProject } from './sampleProject.mjs';
 
 await runE2E(await writeLayersProject('e2e-layers'), run, 9340);
 
-async function run({ evaluate, waitFor, drag, click, clickAt, rect, shot }) {
+async function run({ evaluate, waitFor, drag, click, clickAt, rect, shot, send }) {
   await waitFor('window.__vce?.state.project.tracks?.length === 3', 15000);
   const S = () => evaluate(`JSON.parse(JSON.stringify({ p: __vce.state.project, past: __vce.state.past.length, sel: __vce.state.selectedClipId,
     cues: __vce.state.selectedCues, all: __vce.state.captionScopeAll, time: __vce.state.time }))`);
@@ -119,7 +119,7 @@ async function run({ evaluate, waitFor, drag, click, clickAt, rect, shot }) {
   check('animation: the GIF fades in, then shows fully', op1 > 0.05 && op1 < 0.9 && op2 === 1, `${op1.toFixed(2)} then ${op2}`);
 
   // 7. Timeline: drag the GIF later on its layer, then above the top layer onto a new one; undo both.
-  const pps = Number(await evaluate("document.querySelector('.zoom input').value"));
+  const pps = Number(await evaluate("document.querySelector('.zoom input').dataset.pps"));
   const g0 = await rect('[data-clip="gif1"] .clip-label');
   await drag(g0.x, g0.y, g0.x + 2 * pps, g0.y);
   s = await S();
@@ -231,4 +231,37 @@ async function run({ evaluate, waitFor, drag, click, clickAt, rect, shot }) {
   })()`);
   check('background: the green is transparent, the subject stays', px.corner[3] === 0 && px.middle[3] === 255 && px.middle[0] > 180, JSON.stringify(px));
   await shot('e2e-l6-background');
+
+  // 15. Timeline zoom: Ctrl+wheel at the pointer keeps that time in place; plain wheel does not zoom;
+  // buttons and keys step; Fit shows the whole timeline.
+  const zoomState = (x) => evaluate(`(() => { const el = document.querySelector('.tl-scroll'); const pps = Number(document.querySelector('.zoom input').dataset.pps);
+    return { pps, scroll: el.scrollLeft, t: ${x === undefined ? 'null' : `(el.scrollLeft + ${x} - el.getBoundingClientRect().left - 156) / pps`},
+      view: el.clientWidth - 156, total: Math.max(...__vce.cues.map((c) => c.end), __vcePlayback.total) }; })()`);
+  const lane = await rect('.lane.video-track');
+  const wx = lane.left + 300;
+  const wheel = (deltaY, modifiers) => send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: wx, y: lane.y, deltaX: 0, deltaY, modifiers });
+  const z0 = await zoomState(wx);
+  for (let i = 0; i < 4; i++) await wheel(-120, 2);
+  await sleep(300);
+  const z1 = await zoomState(wx);
+  check('zoom: Ctrl+wheel up zooms in at the pointer', z1.pps > z0.pps * 1.5 && near(z1.t, z0.t, 0.05), `${z0.pps.toFixed(1)} -> ${z1.pps.toFixed(1)} px/s; time under pointer ${z0.t.toFixed(2)} -> ${z1.t.toFixed(2)} s`);
+  for (let i = 0; i < 4; i++) await wheel(120, 2);
+  await sleep(300);
+  const z2 = await zoomState(wx);
+  check('zoom: Ctrl+wheel down zooms back out', near(z2.pps, z0.pps, 0.5) && near(z2.t, z0.t, 0.05), `${z2.pps.toFixed(1)} px/s, ${z2.t.toFixed(2)} s`);
+  await wheel(120, 0);
+  await sleep(200);
+  check('zoom: a plain wheel scrolls, it does not zoom', (await zoomState()).pps === z2.pps);
+  await click('+');
+  const z3 = await zoomState();
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', key: '-', code: 'Minus', text: '-' });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', key: '-', code: 'Minus' });
+  await sleep(200);
+  const z4 = await zoomState();
+  check('zoom: + button and - key step by 1.5×', near(z3.pps, z2.pps * 1.5, 0.01) && near(z4.pps, z2.pps, 0.01), `${z2.pps.toFixed(1)} -> ${z3.pps.toFixed(1)} -> ${z4.pps.toFixed(1)}`);
+  await click('Fit');
+  const z5 = await zoomState();
+  check('zoom: Fit shows the whole timeline', z5.scroll === 0 && z5.total * z5.pps <= z5.view && z5.total * z5.pps > z5.view * 0.8,
+    `${z5.total.toFixed(1)} s × ${z5.pps.toFixed(1)} px/s in ${z5.view} px`);
+  await shot('e2e-l7-zoom-fit');
 }

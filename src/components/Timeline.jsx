@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { projectCues, setCueTiming } from '../../core/captions.js';
 import {
   addTrack, elementSpan, findElement, isStill, itemSpan, layout, mediaKind, moveClipTo, moveItem, moveTrack, newId,
@@ -8,7 +8,13 @@ import { formatClock, snapTime } from '../../core/time.js';
 import { timelineWords } from '../../core/transcript.js';
 import { mediaUrl } from '../api.js';
 
-const TICK_STEPS = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300];
+const TICK_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];
+/** Zoom range in pixels per second (log-scale slider) and the step of the buttons and keys. */
+const MIN_PPS = 1;
+const MAX_PPS = 400;
+const ZOOM_STEP = 1.5;
+const sliderOf = (pps) => Math.log(pps / MIN_PPS) / Math.log(MAX_PPS / MIN_PPS);
+const ppsOf = (f) => MIN_PPS * (MAX_PPS / MIN_PPS) ** f;
 const SNAP_PX = 8;
 const DRAG_PX = 3;
 const HEAD = 156; // track header column, px (matches .row .head in styles.css)
@@ -169,7 +175,9 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
   const shownItems = shownProject === project ? items : layout(shownProject);
   const shownCues = shownProject === project ? cues : projectCues(timelineWords(shownProject), shownProject);
   const shownTotal = Math.max(total, shownItems.at(-1)?.end ?? 0, ...shownCues.map((c) => c.end));
-  const width = Math.max((shownTotal + 10) * pps, 600);
+  // One screen of room after the end, so any time can be scrolled to the left edge (zoom keeps its anchor).
+  const viewWidth = scrollRef.current ? scrollRef.current.clientWidth - HEAD : 1000;
+  const width = Math.max(shownTotal * pps + viewWidth, 600);
 
   const timeAt = (clientX) => (clientX - innerRef.current.getBoundingClientRect().left - HEAD) / pps;
   const onScrub = (e) => {
@@ -190,18 +198,73 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
     onScrub(e);
   };
 
-  // Keep the playhead in view.
+  // ----- zoom: keep the time under the pointer (or the playhead, or the view centre) in place -----
+  const zoomRef = useRef({});
+  zoomRef.current = { pps, time, total: shownTotal };
+  const pendingScroll = useRef(null);
+  const zoomTo = (next, clientX) => {
+    const el = scrollRef.current;
+    const cur = zoomRef.current;
+    const p = Math.min(MAX_PPS, Math.max(MIN_PPS, next));
+    if (!el || Math.abs(p - cur.pps) < 1e-6) return;
+    const view = el.clientWidth - HEAD;
+    const head = cur.time * cur.pps - el.scrollLeft;
+    const x = clientX !== undefined ? clientX - el.getBoundingClientRect().left - HEAD : head >= 0 && head <= view ? head : view / 2;
+    pendingScroll.current = ((el.scrollLeft + x) / cur.pps) * p - x;
+    setPps(p);
+  };
+  const zoomFit = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    pendingScroll.current = 0;
+    setPps(Math.min(MAX_PPS, Math.max(MIN_PPS, (el.clientWidth - HEAD - 30) / Math.max(zoomRef.current.total, 1))));
+  };
+  const zoomFns = useRef({});
+  zoomFns.current = { zoomTo, zoomFit };
+
+  useLayoutEffect(() => {
+    if (pendingScroll.current === null || !scrollRef.current) return;
+    scrollRef.current.scrollLeft = Math.max(0, pendingScroll.current);
+    pendingScroll.current = null;
+  }, [pps]);
+
+  // Ctrl + wheel (and touchpad pinch, which Chromium sends as Ctrl + wheel) zooms at the pointer;
+  // + / - zoom at the playhead, 0 fits the whole timeline.
+  useEffect(() => {
+    const el = scrollRef.current;
+    const onWheel = (e) => {
+      if (!e.ctrlKey && !e.metaKey) return;
+      e.preventDefault();
+      zoomFns.current.zoomTo(zoomRef.current.pps * Math.exp(-e.deltaY * 0.0015), e.clientX);
+    };
+    const onKey = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.target.closest('input, textarea, select, [contenteditable]')) return;
+      if (e.key === '+' || e.key === '=') zoomFns.current.zoomTo(zoomRef.current.pps * ZOOM_STEP);
+      else if (e.key === '-' || e.key === '_') zoomFns.current.zoomTo(zoomRef.current.pps / ZOOM_STEP);
+      else if (e.key === '0') zoomFns.current.zoomFit();
+      else return;
+      e.preventDefault();
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    window.addEventListener('keydown', onKey);
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
+
+  // Keep the playhead in view while it moves (zooming keeps its own anchor).
   useEffect(() => {
     const el = scrollRef.current;
     if (!el || dragRef.current) return;
-    const x = time * pps;
+    const x = time * zoomRef.current.pps;
     const view = el.clientWidth - HEAD;
     if (x < el.scrollLeft || x > el.scrollLeft + view - 40) el.scrollLeft = Math.max(0, x - view * 0.3);
-  }, [time, pps]);
+  }, [time]);
 
-  const step = TICK_STEPS.find((s) => s * pps >= 70) ?? 600;
+  const step = TICK_STEPS.find((s) => s * pps >= 70) ?? 3600;
   const ticks = [];
-  for (let t = 0; t <= shownTotal + 10; t += step) ticks.push(t);
+  for (let i = 0; i * step <= width / pps; i++) ticks.push(Math.round(i * step * 1000) / 1000);
 
   const tracks = shownProject.tracks ?? [];
   const layers = tracks.filter((t) => t.kind === 'layer').reverse();
@@ -285,12 +348,22 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
         <button onClick={() => dispatch({ type: 'edit', fn: (p) => addTrack(p, 'layer') })} title="Add an empty layer in front">+ Layer</button>
         <button onClick={() => dispatch({ type: 'edit', fn: (p) => addTrack(p, 'audio') })} title="Add an empty audio track">+ Audio track</button>
         <span className="clock">{formatClock(time)}</span>
-        <span className="hint">Drag edges to trim · drag clips to move or change layer · Ctrl+click captions to pick several</span>
+        <span className="hint">Drag edges to trim · drag clips to move or change layer · Ctrl+wheel to zoom</span>
         <span className="grow" />
-        <label className="zoom">
-          Zoom
-          <input type="range" min={5} max={300} value={pps} onChange={(e) => setPps(Number(e.target.value))} />
-        </label>
+        <div className="zoom" title="Zoom: Ctrl + mouse wheel or pinch on the timeline · + / - keys · 0 fits">
+          <button onClick={() => zoomTo(pps / ZOOM_STEP)} title="Zoom out (-)">−</button>
+          <input
+            type="range"
+            min={0}
+            max={1000}
+            value={Math.round(sliderOf(pps) * 1000)}
+            data-pps={pps}
+            aria-label="Timeline zoom"
+            onChange={(e) => zoomTo(ppsOf(Number(e.target.value) / 1000))}
+          />
+          <button onClick={() => zoomTo(pps * ZOOM_STEP)} title="Zoom in (+)">+</button>
+          <button onClick={zoomFit} title="Show the whole timeline (0)">Fit</button>
+        </div>
       </div>
       <div className="tl-scroll" ref={scrollRef}>
         <div className={`tl-inner${drag?.moved ? ' dragging' : ''}`} ref={innerRef} style={{ width: width + HEAD }}>

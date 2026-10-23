@@ -15,7 +15,7 @@ Status: **0.3.0** (layers, keyframes, effects, background removal; see [docs/pla
 | Import | Video (MP4, MOV, MKV, WebM, AVI…), audio (MP3, WAV, M4A…), images (PNG, JPG, WebP, BMP), GIF and APNG, subtitles (SRT, VTT); files the preview can't play (HEVC, MKV, ProRes) get a 720p preview copy automatically |
 | Where imports go | Videos to the main track, images and GIFs to a layer at the playhead (or the main track while it is empty), audio to an audio track at the playhead, subtitles to the caption track |
 | Layers | Any number of layer tracks over the main track and audio tracks under it; the top layer is in front; reorder layers (▲▼), hide, mute, delete; drag an item to another layer, or above the top layer for a new one; Bring forward / Send backward; lift a main clip to a layer (picture-in-picture) or put a layer item on the main track |
-| Timeline | Split (S) the selected clip, image, GIF or audio at the playhead; drag an edge to trim or lengthen (images and GIFs have no fixed length); drag main clips to reorder; snapping to the playhead and clip edges; every drag is one undo step |
+| Timeline | Split (S) the selected clip, image, GIF or audio at the playhead; drag an edge to trim or lengthen (images and GIFs have no fixed length); drag main clips to reorder; snapping to the playhead and clip edges; every drag is one undo step; zoom with Ctrl + mouse wheel or touchpad pinch (at the pointer), − / + buttons or keys, the slider, or **Fit** (0) to see the whole timeline |
 | Position, size, crop | Click a picture in the preview to select it, drag to move (snaps to the centre), drag a corner to resize; **Crop in preview** shows the whole picture with a crop box and eight handles, or type left/top/right/bottom, or pick 16:9, 9:16, 1:1, 4:3; the canvas ratio (16:9, 9:16, 1:1, 4:5, 4:3) is next to the play button |
 | Keyframes | Add keyframes for position, size and opacity; with keyframes, moving or resizing at the playhead sets a keyframe there; pick the curve to the next keyframe (linear, ease in, ease out, ease in-out, hold) |
 | In and out effects | Fade, slide from or to any side, zoom in, zoom out, pop/shrink, with a length; on any picture |
@@ -73,7 +73,7 @@ For development with hot reload, use `npm run dev`.
 5. Remove a background in the **Clip** tab (**AI** or **Colour key**).
 6. **Export** an MP4, or **Download…** the captions. Projects save as `.shotcut` (JSON; media is referenced, not copied). Projects from 0.2 open as they were.
 
-Keys: Space play/pause · S split · Del delete · Esc deselect · ←/→ one frame · Shift+←/→ one second · Ctrl+Z / Ctrl+Y · Ctrl+S.
+Keys: Space play/pause · S split · Del delete · Esc deselect · ←/→ one frame · Shift+←/→ one second · Ctrl+Z / Ctrl+Y · Ctrl+S · + / − zoom the timeline · 0 fit · Ctrl+wheel zoom at the pointer.
 Double-click the preview background to play or pause.
 
 ## Files
@@ -110,7 +110,7 @@ npm test
 - `npm run smoke` opens the real window on a sample project and saves `dev/out/smoke.png`.
 - `npm run e2e` drives the real window over the DevTools protocol with real mouse input, in two runs:
   - `dev/tools/e2e.mjs` (18 checks): drag-trim, drag-reorder, undo, text cut, gap-free playback, caption and export presets, Settings.
-  - `dev/tools/e2e-layers.mjs` (28 checks): layer placement and stacking, click-select, move with snap, corner resize, crop, keyframes and curves, fade-in, moving items between layers, +6 dB through Web Audio, the transition preview, moving the caption box for all and for selected captions, caption trim, subtitle move, colour-key background removal.
+  - `dev/tools/e2e-layers.mjs` (33 checks): layer placement and stacking, click-select, move with snap, corner resize, crop, keyframes and curves, fade-in, moving items between layers, +6 dB through Web Audio, the transition preview, moving the caption box for all and for selected captions, caption trim, subtitle move, colour-key background removal, timeline zoom (Ctrl+wheel anchor, buttons, keys, Fit).
   - Screenshots go to `dev/out/e2e-*.png`.
 
 ## How Export Works

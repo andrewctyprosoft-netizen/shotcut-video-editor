@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Timeline zoom: Ctrl + mouse wheel or touchpad pinch zooms at the pointer, − / + buttons and keys (1.5× steps), Fit (0) shows the whole timeline; range 1–400 px/s on a log slider; one screen of room after the end.
+- Fix: a zoomed-in timeline widened the window instead of scrolling (app grid column could grow with its content).
+- The time ruler stays visible when the tracks scroll.
+
 ## 0.3.0 — 2026-10-23
 
 - Layers: layer tracks over the main track and audio tracks under it; stacking order, hide, mute, reorder, delete; drag items in time and between layers (above the top layer = a new layer; emptied layers are removed); Bring forward / Send backward; lift a main clip to a layer and back.
