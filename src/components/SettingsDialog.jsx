@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { CUTOUT_MODELS } from '../../core/media.js';
 import { api } from '../api.js';
 
 const ENCODERS = [
@@ -65,6 +66,12 @@ export function SettingsDialog({ onClose }) {
             </select>
           </label>
         </div>
+        <label className="field">
+          <span>Background removal model (AI method; downloaded once, then offline)</span>
+          <select value={settings.cutoutModel} onChange={set('cutoutModel')}>
+            {Object.entries(CUTOUT_MODELS).map(([v, m]) => <option key={v} value={v}>{m.label}</option>)}
+          </select>
+        </label>
         <h4>Tool check {checking && <em>checking…</em>}</h4>
         {status?.error && <p className="bad">{status.error}</p>}
         {status && !status.error && (

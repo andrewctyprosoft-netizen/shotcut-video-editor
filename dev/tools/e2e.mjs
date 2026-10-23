@@ -1,28 +1,11 @@
 // End-to-end checks in the real Electron window, driven over the Chrome DevTools Protocol with real
 // mouse input: drag-trim, drag-reorder, undo, text cut, gap-free playback across a cut, captions presets
 // and export presets. Usage: npm run e2e   (needs `npm run samples` once). Screenshots go to dev/out/.
-import { spawn } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
-import { join } from 'node:path';
-import electronPath from 'electron';
-import { outDir, root, writeSampleProject } from './sampleProject.mjs';
+// Layers, effects and caption editing are checked by e2e-layers.mjs.
+import { check, runE2E, sleep } from './cdp.mjs';
+import { writeSampleProject } from './sampleProject.mjs';
 
-const PORT = 9339;
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const results = [];
-
-const projectFile = await writeSampleProject('e2e');
-const child = spawn(electronPath, ['.', projectFile, `--remote-debugging-port=${PORT}`], { cwd: root, stdio: ['ignore', 'inherit', 'inherit'] });
-let exitCode = 1;
-try {
-  const cdp = await connect();
-  exitCode = await run(cdp);
-} catch (err) {
-  console.error(err);
-} finally {
-  child.kill();
-}
-process.exit(exitCode);
+await runE2E(await writeSampleProject('e2e'), run);
 
 // ---------- scenarios ----------
 
@@ -149,106 +132,9 @@ async function run({ evaluate, waitFor, drag, click, shot }) {
   await shot('e2e-6-settings');
   await click('Close');
 
-  return report();
 }
 
-// ---------- CDP plumbing ----------
-
-async function connect() {
-  let target;
-  for (let i = 0; i < 100 && !target; i++) {
-    try {
-      const list = await (await fetch(`http://127.0.0.1:${PORT}/json/list`)).json();
-      target = list.find((t) => t.type === 'page' && t.url.includes('index.html'));
-    } catch {
-      // not up yet
-    }
-    if (!target) await sleep(200);
-  }
-  if (!target) throw new Error('Electron page did not appear on the debugging port');
-  const ws = new WebSocket(target.webSocketDebuggerUrl);
-  await new Promise((resolve, reject) => {
-    ws.onopen = resolve;
-    ws.onerror = reject;
-  });
-  let seq = 0;
-  const pending = new Map();
-  ws.onmessage = (ev) => {
-    const msg = JSON.parse(ev.data);
-    if (msg.id && pending.has(msg.id)) {
-      const { resolve, reject } = pending.get(msg.id);
-      pending.delete(msg.id);
-      if (msg.error) reject(new Error(msg.error.message));
-      else resolve(msg.result);
-    }
-  };
-  const send = (method, params = {}) => new Promise((resolve, reject) => {
-    const id = ++seq;
-    pending.set(id, { resolve, reject });
-    ws.send(JSON.stringify({ id, method, params }));
-  });
-  const evaluate = async (expression) => {
-    const r = await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true });
-    if (r.exceptionDetails) throw new Error(`${expression.slice(0, 80)}: ${r.exceptionDetails.exception?.description ?? r.exceptionDetails.text}`);
-    return r.result.value;
-  };
-  const waitFor = async (expression, ms = 10000) => {
-    const end = Date.now() + ms;
-    while (Date.now() < end) {
-      try {
-        if (await evaluate(expression)) return;
-      } catch {
-        // page still loading
-      }
-      await sleep(100);
-    }
-    throw new Error(`timeout waiting for ${expression}`);
-  };
-  const mouse = (type, x, y, extra = {}) => send('Input.dispatchMouseEvent', { type, x, y, button: 'left', ...extra });
-  const drag = async (x0, y0, x1, y1, steps = 12) => {
-    await mouse('mouseMoved', x0, y0, { button: 'none' });
-    await mouse('mousePressed', x0, y0, { clickCount: 1, buttons: 1 });
-    for (let i = 1; i <= steps; i++) {
-      await mouse('mouseMoved', x0 + ((x1 - x0) * i) / steps, y0 + ((y1 - y0) * i) / steps, { buttons: 1 });
-      await sleep(16);
-    }
-    await mouse('mouseReleased', x1, y1, { clickCount: 1, buttons: 0 });
-    await sleep(150);
-  };
-  /** Real click on the first visible button whose label matches. */
-  const click = async (label) => {
-    const test = label instanceof RegExp ? `new RegExp(${JSON.stringify(label.source)})` : null;
-    const pos = await evaluate(`(() => {
-      const b = [...document.querySelectorAll('button')].find((el) => el.offsetParent && (${test ? `${test}.test(el.textContent.trim())` : `el.textContent.trim() === ${JSON.stringify(label)}`}));
-      if (!b) return null;
-      const r = b.getBoundingClientRect();
-      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
-    })()`);
-    if (!pos) throw new Error(`button not found: ${label}`);
-    await mouse('mouseMoved', pos.x, pos.y, { button: 'none' });
-    await mouse('mousePressed', pos.x, pos.y, { clickCount: 1, buttons: 1 });
-    await mouse('mouseReleased', pos.x, pos.y, { clickCount: 1, buttons: 0 });
-    await sleep(250);
-  };
-  const shot = async (name) => {
-    const { data } = await send('Page.captureScreenshot', { format: 'png' });
-    writeFileSync(join(outDir, `${name}.png`), Buffer.from(data, 'base64'));
-  };
-  return { evaluate, waitFor, drag, click, shot, send };
-}
-
-// ---------- reporting ----------
-
-function check(name, ok, detail = '') {
-  results.push({ name, ok });
-  console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  (${detail})` : ''}`);
-}
-
-function report() {
-  const failed = results.filter((r) => !r.ok).length;
-  console.log(`\n${results.length - failed}/${results.length} checks passed`);
-  return failed ? 1 : 0;
-}
+// ---------- helpers ----------
 
 function median(xs) {
   const s = [...xs].sort((a, b) => a - b);

@@ -1,5 +1,6 @@
 // media:// protocol: serves local media files to the renderer with HTTP range support (needed for seeking).
-// Only files the user picked, opened through a project, or proxies the app made are served.
+// Only files the user picked, opened through a project, or files the app made (proxies, cutouts) are served.
+// Responses allow CORS so the preview can route audio through Web Audio (gain above 0 dB).
 
 import { createReadStream, statSync } from 'node:fs';
 import { extname, resolve } from 'node:path';
@@ -10,7 +11,10 @@ const MIME = {
   '.mp4': 'video/mp4', '.m4v': 'video/mp4', '.mov': 'video/quicktime', '.webm': 'video/webm',
   '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.aac': 'audio/aac', '.wav': 'audio/wav',
   '.ogg': 'audio/ogg', '.opus': 'audio/ogg', '.flac': 'audio/flac',
+  '.png': 'image/png', '.apng': 'image/apng', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp',
+  '.bmp': 'image/bmp', '.gif': 'image/gif',
 };
+const CORS = { 'Access-Control-Allow-Origin': '*' };
 const allowed = new Set();
 
 const key = (p) => {
@@ -26,7 +30,7 @@ export function allowMedia(path) {
 /** Must run before app `ready`. */
 export function registerMediaScheme() {
   protocol.registerSchemesAsPrivileged([
-    { scheme: 'media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true } },
+    { scheme: 'media', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, corsEnabled: true } },
   ]);
 }
 
@@ -34,18 +38,18 @@ export function registerMediaScheme() {
 export function handleMediaProtocol() {
   protocol.handle('media', (request) => {
     const path = decodeURIComponent(new URL(request.url).pathname.slice(1));
-    if (!allowed.has(key(path))) return new Response('Forbidden', { status: 403 });
+    if (!allowed.has(key(path))) return new Response('Forbidden', { status: 403, headers: CORS });
     let size;
     try {
       size = statSync(path).size;
     } catch {
-      return new Response('Not found', { status: 404 });
+      return new Response('Not found', { status: 404, headers: CORS });
     }
     const type = MIME[extname(path).toLowerCase()] ?? 'application/octet-stream';
     const m = /bytes=(\d*)-(\d*)/.exec(request.headers.get('range') ?? '');
     if (!m) {
       return new Response(Readable.toWeb(createReadStream(path)), {
-        headers: { 'Content-Type': type, 'Content-Length': String(size), 'Accept-Ranges': 'bytes' },
+        headers: { ...CORS, 'Content-Type': type, 'Content-Length': String(size), 'Accept-Ranges': 'bytes' },
       });
     }
     let start = m[1] ? Number(m[1]) : size - Number(m[2]);
@@ -55,6 +59,7 @@ export function handleMediaProtocol() {
     return new Response(Readable.toWeb(createReadStream(path, { start, end })), {
       status: 206,
       headers: {
+        ...CORS,
         'Content-Type': type,
         'Content-Length': String(end - start + 1),
         'Content-Range': `bytes ${start}-${end}/${size}`,

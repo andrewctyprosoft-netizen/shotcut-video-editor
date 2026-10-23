@@ -1,6 +1,6 @@
 // Editor state: the project with undo/redo history, plus UI state (time, selection, jobs).
 
-import { createProject } from '../core/project.js';
+import { createProject, normalizeProject } from '../core/project.js';
 
 const HISTORY = 100;
 const COALESCE_MS = 1000;
@@ -14,7 +14,10 @@ export const initialState = {
   dirty: false,
   time: 0,
   playing: false,
-  selectedClipId: null,
+  selectedClipId: null, // a main clip or a track item
+  selectedCues: [], // caption cue keys (Ctrl/Shift+click adds)
+  captionScopeAll: true, // caption style edits apply to every caption, else only to selectedCues
+  cropId: null, // element whose crop box is open in the preview
   jobs: {},
 };
 
@@ -65,7 +68,7 @@ export function reducer(state, action) {
       return { ...state, project, past: [...state.past, state.project], future, lastEdit: null, dirty: true };
     }
     case 'load':
-      return { ...initialState, jobs: state.jobs, project: action.project, filePath: action.filePath ?? null, time: action.time ?? 0 };
+      return { ...initialState, jobs: state.jobs, project: normalizeProject(action.project), filePath: action.filePath ?? null, time: action.time ?? 0 };
     case 'saved':
       return { ...state, filePath: action.filePath, dirty: false };
     case 'time':
@@ -73,10 +76,19 @@ export function reducer(state, action) {
     case 'play':
       return { ...state, playing: action.playing };
     case 'select':
-      return { ...state, selectedClipId: action.clipId };
+      return { ...state, selectedClipId: action.clipId, selectedCues: action.clipId ? [] : state.selectedCues, cropId: action.clipId === state.cropId ? state.cropId : null };
+    case 'selectCues':
+      return { ...state, selectedCues: action.keys, selectedClipId: action.keys.length ? null : state.selectedClipId, cropId: null };
+    case 'captionScope':
+      return { ...state, captionScopeAll: action.all };
+    case 'crop':
+      return { ...state, cropId: action.id, selectedClipId: action.id ?? state.selectedClipId };
     case 'job': {
+      // A job that finishes at once (a cached result) can report before its start is recorded: keep the end state.
       const prev = state.jobs[action.job.id] ?? {};
-      return { ...state, jobs: { ...state.jobs, [action.job.id]: { ...prev, ...action.job } } };
+      const ended = prev.status && prev.status !== 'running';
+      const job = ended ? { ...action.job, ...prev } : { ...prev, ...action.job };
+      return { ...state, jobs: { ...state.jobs, [action.job.id]: job } };
     }
     case 'dismissJob': {
       const { [action.id]: _gone, ...jobs } = state.jobs;

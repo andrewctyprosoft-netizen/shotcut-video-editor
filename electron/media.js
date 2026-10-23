@@ -1,11 +1,11 @@
 // Probe media and build preview proxies with FFmpeg. No Electron imports (tests use it directly).
 
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, renameSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { needsProxy, parseProbe, proxyArgs } from '../core/media.js';
 import { parseProgressLine } from '../core/exportPlan.js';
-import { runOk } from './proc.js';
+import { moveFile, runOk } from './proc.js';
 
 /**
  * Probe a media file.
@@ -42,6 +42,6 @@ export async function makeProxy(ffmpeg, info, dir, opts = {}) {
       if (p?.seconds !== undefined && info.duration) opts.onProgress?.(Math.min(1, p.seconds / info.duration));
     },
   });
-  renameSync(tmp, out);
+  moveFile(tmp, out);
   return out;
 }

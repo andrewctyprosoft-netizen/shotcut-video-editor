@@ -155,3 +155,75 @@ test('pausing during a pre-roll puts the hidden slot back on its in-point', () =
   engine.pause();
   assert.deepEqual([videos[1].paused, videos[1].muted, videos[1].currentTime], [true, false, 0]);
 });
+
+test('a transition keeps the outgoing clip playing until its end, both visible', () => {
+  let p = projectWith(media('a', 4), media('b', 4));
+  p = updateClip(p, p.clips[1].id, { transition: { type: 'fade', duration: 1 } }); // b starts at 3
+  const { engine, videos, times, load, items } = setup(p);
+  engine.sync(items, 2.5);
+  load();
+  engine.play();
+  videos.forEach((v) => v.advance(0.55));
+  engine.tick();
+  assert.equal(engine.activeSlot, 1, 'swapped at the start of the transition');
+  assert.equal(times.at(-1), 3);
+  assert.deepEqual(videos.map((v) => [v.paused, v.style.visibility]), [[false, 'visible'], [false, 'visible']]);
+  videos.forEach((v) => v.advance(1));
+  engine.tick();
+  assert.deepEqual([videos[0].paused, videos[0].style.visibility], [true, 'hidden'], 'outgoing stops at its end');
+});
+
+test('seeking into a transition shows both clips at their own times', () => {
+  let p = projectWith(media('a', 4), media('b', 4));
+  p = updateClip(p, p.clips[1].id, { transition: { type: 'wipeleft', duration: 1 } });
+  const { engine, videos, load, items } = setup(p);
+  engine.sync(items, 0);
+  load();
+  engine.seek(3.5);
+  load();
+  const byUrl = Object.fromEntries(videos.map((v) => [v.src, v]));
+  assert.equal(byUrl['media://b'].currentTime, 0.5);
+  assert.equal(byUrl['media://a'].currentTime, 3.5);
+  assert.ok(videos.every((v) => v.style.visibility === 'visible'));
+});
+
+test('stills on the main track and the timeline after it run on the wall clock', () => {
+  const p = projectWith(media('img', 0, { kind: 'image' }), media('v', 2));
+  const items = layout(p); // img 0-5, v 5-7
+  const videos = [new FakeVideo(), new FakeVideo()];
+  const times = [];
+  let now = 1000;
+  let ended = 0;
+  const engine = new PlaybackEngine({
+    videos,
+    urlFor: (clip) => `media://${clip.mediaId}`,
+    isStill: (clip) => clip.mediaId === 'img',
+    now: () => now,
+    onTime: (t) => times.push(t),
+    onEnd: () => ended++,
+  });
+  engine.sync(items, 0, 9); // layers run to 9 s
+  videos.forEach((v) => v.finishLoad());
+  assert.ok(videos.every((v) => v.style.visibility === 'hidden'), 'the page draws the image');
+  engine.play();
+  now += 4800;
+  engine.tick();
+  assert.equal(times.at(-1), 4.8);
+  const pre = videos.find((v) => v.src === 'media://v');
+  assert.ok(pre && !pre.paused && pre.muted, 'the video after the image pre-rolls');
+  pre.advance(0.2);
+  now += 200;
+  engine.tick();
+  assert.equal(times.at(-1), 5);
+  assert.deepEqual([pre.muted, pre.style.visibility], [false, 'visible']);
+  pre.advance(2);
+  engine.tick();
+  assert.equal(times.at(-1), 7, 'main track over');
+  assert.equal(ended, 0, 'but the timeline goes on');
+  now += 1500;
+  engine.tick();
+  assert.equal(times.at(-1), 8.5);
+  now += 600;
+  engine.tick();
+  assert.equal(ended, 1);
+});

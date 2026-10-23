@@ -1,11 +1,15 @@
-// Electron main process: window, media:// protocol, dialogs and background jobs (proxy, transcribe, align, export).
+// Electron main process: window, media:// protocol, dialogs and background jobs
+// (proxy, transcribe, align, background removal, export).
 
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { MEDIA_EXTENSIONS } from '../core/media.js';
+import {
+  AUDIO_EXTENSIONS, IMAGE_EXTENSIONS, MEDIA_EXTENSIONS, SUBTITLE_EXTENSIONS, VIDEO_EXTENSIONS,
+} from '../core/media.js';
 import { alignTranscript, transcribe } from './asr.js';
+import { makeCutout } from './cutout.js';
 import { runExport } from './export.js';
 import { makeProxy, probe } from './media.js';
 import { allowMedia, handleMediaProtocol, registerMediaScheme } from './mediaProtocol.js';
@@ -16,6 +20,13 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 const appRoot = join(here, '..');
 const asrDir = join(appRoot, 'asr');
+const visionDir = join(appRoot, 'vision');
+const CAPTION_FILTERS = {
+  srt: { name: 'SubRip', extensions: ['srt'] },
+  vtt: { name: 'WebVTT', extensions: ['vtt'] },
+  ass: { name: 'Advanced SubStation Alpha', extensions: ['ass'] },
+  txt: { name: 'Text', extensions: ['txt'] },
+};
 const PROJECT_FILTER = { name: 'ShotCut project', extensions: ['shotcut'] };
 
 registerMediaScheme();
@@ -42,7 +53,10 @@ function createWindow() {
     backgroundColor: '#15161a',
     title: 'ShotCut',
     autoHideMenuBar: true,
-    webPreferences: { preload: join(here, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false },
+    webPreferences: {
+      preload: join(here, 'preload.cjs'), contextIsolation: true, sandbox: true, nodeIntegration: false,
+      autoplayPolicy: 'no-user-gesture-required', // Web Audio gain for clip volume starts without a click
+    },
   });
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
@@ -79,12 +93,22 @@ ipcMain.handle('media:pick', async () => {
   const res = await dialog.showOpenDialog(win, {
     title: 'Import media',
     properties: ['openFile', 'multiSelections'],
-    filters: [{ name: 'Video and audio', extensions: MEDIA_EXTENSIONS }],
+    filters: [
+      { name: 'All supported', extensions: [...MEDIA_EXTENSIONS, ...SUBTITLE_EXTENSIONS] },
+      { name: 'Video', extensions: VIDEO_EXTENSIONS },
+      { name: 'Audio', extensions: AUDIO_EXTENSIONS },
+      { name: 'Images and GIFs', extensions: IMAGE_EXTENSIONS },
+      { name: 'Subtitles (SRT, VTT)', extensions: SUBTITLE_EXTENSIONS },
+    ],
   });
   if (res.canceled) return [];
   const { ffprobe } = resolveFfmpeg(settings, appRoot);
   const out = [];
   for (const path of res.filePaths) {
+    if (SUBTITLE_EXTENSIONS.includes(extname(path).slice(1).toLowerCase())) {
+      out.push({ path, name: basename(path), kind: 'subtitles', text: readFileSync(path, 'utf8') });
+      continue;
+    }
     try {
       out.push(await probe(ffprobe, path));
       allowMedia(path);
@@ -121,8 +145,9 @@ ipcMain.handle('transcript:pick', async () => {
   return res.canceled ? null : readFileSync(res.filePaths[0], 'utf8');
 });
 
-ipcMain.handle('captions:saveSrt', async (_e, { text, name }) => {
-  const res = await dialog.showSaveDialog(win, { title: 'Save captions', defaultPath: name || 'captions.srt', filters: [{ name: 'SubRip', extensions: ['srt'] }] });
+ipcMain.handle('captions:save', async (_e, { text, name, format = 'srt' }) => {
+  const filter = CAPTION_FILTERS[format] ?? CAPTION_FILTERS.srt;
+  const res = await dialog.showSaveDialog(win, { title: 'Download captions', defaultPath: name || `captions.${format}`, filters: [filter] });
   if (res.canceled) return null;
   writeFileSync(res.filePath, text, 'utf8');
   return res.filePath;
@@ -164,6 +189,18 @@ const JOBS = {
     const python = await resolvePython(settings);
     if (!python.ok) throw new Error(python.error);
     return { mediaId, words: await alignTranscript({ python: python.command, asrDir, workDir, text, words, signal }) };
+  },
+  async cutout({ mediaId, elementId, info, method, key }, signal, progress) {
+    const { ffmpeg } = resolveFfmpeg(settings, appRoot);
+    const python = method === 'ai' ? await resolvePython(settings) : null;
+    if (python && !python.ok) throw new Error(python.error);
+    const userData = app.getPath('userData');
+    const path = await makeCutout({
+      ffmpeg, python: python?.command, visionDir, modelsDir: join(userData, 'models'), outDir: join(userData, 'cutouts'),
+      info, method, key, model: settings.cutoutModel, signal, onProgress: progress,
+    });
+    allowMedia(path);
+    return { mediaId, elementId, path, method };
   },
   async export({ project, output }, signal, progress, workDir) {
     const { ffmpeg } = resolveFfmpeg(settings, appRoot);

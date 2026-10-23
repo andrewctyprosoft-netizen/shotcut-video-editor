@@ -64,15 +64,21 @@ export function captionPreset(id) {
   return p ? { maxChars: p.maxChars, style: { ...defaultCaptions().style, ...p.style } } : null;
 }
 
+/** Style fields a preset never changes: where the user put the text box. */
+const KEEP_ON_PRESET = ['x', 'width'];
+
 /**
- * Apply a caption preset (style and characters per caption). Keeps captions on/off as they were.
+ * Apply a caption preset (style and characters per caption). Keeps captions on/off, the text box's
+ * horizontal place and width, and per-caption changes as they were.
  * @param {object} project
  * @param {string} id
  * @returns {object}
  */
 export function applyCaptionPreset(project, id) {
   const p = captionPreset(id);
-  return p ? { ...project, captions: { ...project.captions, maxChars: p.maxChars, style: p.style } } : project;
+  if (!p) return project;
+  const kept = Object.fromEntries(KEEP_ON_PRESET.map((k) => [k, project.captions.style[k] ?? p.style[k]]));
+  return { ...project, captions: { ...project.captions, maxChars: p.maxChars, style: { ...p.style, ...kept } } };
 }
 
 /**
@@ -83,7 +89,8 @@ export function applyCaptionPreset(project, id) {
 export function matchingCaptionPreset(captions) {
   const hit = CAPTION_PRESETS.find((x) => {
     const p = captionPreset(x.id);
-    return p.maxChars === captions.maxChars && Object.entries(p.style).every(([k, v]) => captions.style[k] === v);
+    return p.maxChars === captions.maxChars
+      && Object.entries(p.style).every(([k, v]) => KEEP_ON_PRESET.includes(k) || captions.style[k] === v);
   });
   return hit?.id ?? null;
 }

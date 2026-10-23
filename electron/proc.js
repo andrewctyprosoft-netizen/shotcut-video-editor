@@ -1,7 +1,25 @@
 // Child-process helper: spawn a tool, stream its output line by line, cancel with an AbortSignal.
+// Also the file move that finished tool outputs use.
 
 import { spawn } from 'node:child_process';
+import { copyFileSync, renameSync, rmSync } from 'node:fs';
 import { createInterface } from 'node:readline';
+
+/**
+ * Move a finished file into place. Falls back to copy + delete when the rename is refused across
+ * devices (EXDEV), which also happens inside one folder on virtualised or redirected profile folders.
+ * @param {string} from
+ * @param {string} to
+ */
+export function moveFile(from, to) {
+  try {
+    renameSync(from, to);
+  } catch (err) {
+    if (err.code !== 'EXDEV') throw err;
+    copyFileSync(from, to);
+    rmSync(from, { force: true });
+  }
+}
 
 /**
  * Split a command string such as `py -3.11` or `"C:\My Tools\python.exe" -X utf8` into [cmd, ...args].

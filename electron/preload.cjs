@@ -16,7 +16,7 @@ contextBridge.exposeInMainWorld('api', {
   openProject: () => ipcRenderer.invoke('project:open'),
   saveProject: (args) => ipcRenderer.invoke('project:save', args),
   pickTranscript: () => ipcRenderer.invoke('transcript:pick'),
-  saveSrt: (args) => ipcRenderer.invoke('captions:saveSrt', args),
+  saveCaptions: (args) => ipcRenderer.invoke('captions:save', args),
   pickExportPath: (args) => ipcRenderer.invoke('export:pick', args),
   exportEncoder: () => ipcRenderer.invoke('export:encoder'),
   showItem: (path) => ipcRenderer.invoke('shell:showItem', path),

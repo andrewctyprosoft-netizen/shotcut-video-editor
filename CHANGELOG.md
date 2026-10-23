@@ -1,8 +1,20 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 — 2026-10-23
 
+- Layers: layer tracks over the main track and audio tracks under it; stacking order, hide, mute, reorder, delete; drag items in time and between layers (above the top layer = a new layer; emptied layers are removed); Bring forward / Send backward; lift a main clip to a layer and back.
+- Import images (PNG, JPG, WebP, BMP), GIF and APNG (loop, any length), audio to an audio track, and SRT/VTT subtitles to the caption track.
+- Preview: click to select, drag to move with centre snap, corner resize, crop box with eight handles (also typed values and ratio presets); canvas ratio picker with 4:5 and 4:3.
+- Keyframes for position, size and opacity with curves (linear, ease in/out/in-out, hold); in/out effects (fade, slides, zoom, pop).
+- Transitions now show in the preview (CSS look-alikes of the 14 `xfade` types); both clips play through the overlap with an audio cross-fade.
+- Audio: volume from mute to +20 dB (Web Audio above 0 dB in the preview), fade in/out, per-track mute; mixed in the export.
+- Background removal: AI (rembg's U²-Net family ONNX models, offline, downloaded once) or colour key; transparent PNG/APNG/VP9 copies; restore original.
+- Captions: drag the caption box in the preview (move, width, text size); All captions or only the selected ones (Ctrl+click); per-caption timing by dragging edges; caption fade in/out and pop; download as SRT, WebVTT, ASS or text, per file or for the timeline.
+- Export: layers with per-frame expressions in `t` for keyframes and effects (deterministic; `sendcmd` was tried and placed moving overlays a few frames off in 2 of 20 runs), stills, GIFs, alpha WebM, `amix` of all audio, one ASS style per caption look.
+- Fix: a job that finishes at once (cached result) no longer loses its target clip or sticks as running.
+- Fix: renaming finished files falls back to copy + delete on EXDEV.
 - `ShotCut.bat`: double-click launcher (first-run install, interface rebuild, opens a dropped `.shotcut`); `.gitattributes` keeps it CRLF.
+- Tests: 74 (unit, real FFmpeg exports, background removal with a stand-in model, ASR); `npm run e2e` runs 18 + 28 checks in the real window. 0.2 projects open unchanged.
 
 ## 0.2.0 — 2026-10-22
 

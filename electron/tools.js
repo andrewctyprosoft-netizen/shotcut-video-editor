@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = {
   model: '', // empty = VCE_WHISPER_MODEL, then a workspace hf_cache copy, then "small" (downloads)
   language: 'en',
   encoder: 'auto', // 'auto' = first working hardware encoder, else libx264
+  cutoutModel: 'silueta', // background removal model (electron/cutout.js CUTOUT_MODELS), downloaded on first use
 };
 
 const PYTHON_CANDIDATES = process.platform === 'win32' ? ['py -3.11', 'py -3', 'python'] : ['python3', 'python'];

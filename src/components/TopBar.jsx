@@ -12,7 +12,7 @@ export function TopBar({ state, commands, onUndo, onRedo, onSettings }) {
         <button onClick={commands.open} title="Open project">Open</button>
         <button onClick={() => commands.save(false)} title="Save (Ctrl+S)">Save</button>
         <span className="sep" />
-        <button onClick={commands.importMedia} title="Import video or audio">Import media</button>
+        <button onClick={commands.importMedia} title="Import video, audio, images, GIFs or subtitles (.srt, .vtt)">Import media</button>
         <span className="sep" />
         <button onClick={onUndo} disabled={!state.past.length} title="Undo (Ctrl+Z)">Undo</button>
         <button onClick={onRedo} disabled={!state.future.length} title="Redo (Ctrl+Y)">Redo</button>

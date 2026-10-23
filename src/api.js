@@ -12,7 +12,7 @@ const stub = {
   openProject: unavailable,
   saveProject: unavailable,
   pickTranscript: unavailable,
-  saveSrt: unavailable,
+  saveCaptions: unavailable,
   pickExportPath: unavailable,
   exportEncoder: async () => 'libx264',
   showItem: unavailable,

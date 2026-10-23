@@ -2,12 +2,13 @@
 // Words use the Transcript QC `words.json` shape: { text, start, end } in media (source) seconds,
 // with an optional `br: true` that forces a caption break after the word.
 
-import { layout, toTimeline, updateMedia } from './project.js';
+import { itemSpan, layout, toTimeline, updateMedia } from './project.js';
 
 export const DEFAULT_FILLERS = ['um', 'uh', 'uhm', 'umm', 'erm', 'er', 'ah', 'hmm', 'mm'];
 
 /**
- * Words that survive the current cuts, in timeline seconds.
+ * Words that survive the current cuts, in timeline seconds: from main-track clips and from track items
+ * (a voice-over on an audio track gets captions too).
  * A word belongs to a clip when its midpoint is inside the clip; during a transition the incoming clip wins.
  * @param {object} project
  * @returns {Array<{text: string, start: number, end: number, mediaId: string, index: number, clipId: string, br?: boolean}>}
@@ -15,21 +16,29 @@ export const DEFAULT_FILLERS = ['um', 'uh', 'uhm', 'umm', 'erm', 'er', 'ah', 'hm
 export function timelineWords(project) {
   const items = layout(project);
   const out = [];
-  items.forEach((item, k) => {
-    const { clip } = item;
-    const words = project.media[clip.mediaId]?.words;
+  const take = (el, item, limit) => {
+    const words = project.media[el.mediaId]?.words;
     if (!words) return;
-    const limit = k + 1 < items.length ? items[k + 1].start : item.end;
     words.forEach((w, index) => {
       const mid = (w.start + w.end) / 2;
-      if (mid < clip.in || mid >= clip.out) return;
-      const start = toTimeline(item, Math.max(w.start, clip.in));
+      if (mid < el.in || mid >= el.out) return;
+      const start = toTimeline(item, Math.max(w.start, el.in));
       if (start >= limit) return;
-      const end = Math.min(toTimeline(item, Math.min(w.end, clip.out)), limit);
-      out.push({ text: w.text, start, end, mediaId: clip.mediaId, index, clipId: clip.id, br: w.br });
+      const end = Math.min(toTimeline(item, Math.min(w.end, el.out)), limit);
+      out.push({ text: w.text, start, end, mediaId: el.mediaId, index, clipId: el.id, br: w.br });
     });
-  });
-  return out;
+  };
+  items.forEach((item, k) => take(item.clip, item, k + 1 < items.length ? items[k + 1].start : item.end));
+  const fps = project.fps || 30;
+  let extra = false;
+  for (const track of project.tracks ?? []) {
+    for (const it of track.items) {
+      const span = itemSpan(it, fps);
+      take(it, { clip: it, start: span.start }, span.end);
+      extra = true;
+    }
+  }
+  return extra ? out.sort((a, b) => a.start - b.start) : out;
 }
 
 /**
