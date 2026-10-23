@@ -12,7 +12,7 @@ await runE2E(await writeLayersProject('e2e-layers'), run, 9340);
 async function run({ evaluate, waitFor, drag, click, clickAt, rect, shot, send }) {
   await waitFor('window.__vce?.state.project.tracks?.length === 3', 15000);
   const S = () => evaluate(`JSON.parse(JSON.stringify({ p: __vce.state.project, past: __vce.state.past.length, sel: __vce.state.selectedClipId,
-    cues: __vce.state.selectedCues, all: __vce.state.captionScopeAll, time: __vce.state.time }))`);
+    ids: __vce.state.selectedIds, cues: __vce.state.selectedCues, all: __vce.state.captionScopeAll, time: __vce.state.time }))`);
   const item = (s, id) => s.p.tracks.flatMap((t) => t.items).find((i) => i.id === id);
   const seek = async (t) => {
     await evaluate(`__vce.dispatch({ type: 'time', time: ${t} })`);
@@ -62,20 +62,35 @@ async function run({ evaluate, waitFor, drag, click, clickAt, rect, shot, send }
   check('resize: dragging a corner outwards enlarges it', item(s, 'logo1').transform.scale > 0.4, String(item(s, 'logo1').transform.scale.toFixed(3)));
   await shot('e2e-l1-move-resize');
 
-  // 4. Crop in the preview: drag the right edge in by 30% of the picture.
-  await click('Crop in preview');
-  await waitFor("!!document.querySelector('.crop-box')");
-  const edge = await rect('.crop-box .cr-h.e');
-  const full = await rect('.crop-full');
-  await drag(edge.x, edge.y, edge.x - full.width * 0.3, edge.y);
+  // 4. Crop two layers together: Ctrl+click the GIF on the timeline (the logo is selected), Crop in the
+  // toolbar, drag the right edge in by 30%, Apply. The green image on another layer is not touched.
+  const gifPick = await rect('[data-clip="gif1"] .clip-label');
+  await clickAt(gifPick.x, gifPick.y, 2);
   s = await S();
-  const crop = item(s, 'logo1').crop;
-  check('crop: the right edge drag keeps 70% of the width', crop && near(crop.w, 0.7, 0.02) && crop.x === 0, JSON.stringify(crop));
+  check('select: Ctrl+click on the timeline adds a second layer', s.ids.length === 2 && s.ids.includes('logo1') && s.ids.includes('gif1'), s.ids.join(','));
+  const outlines = await evaluate("document.querySelectorAll('.stage .gizmo').length");
+  check('select: both selected layers are outlined in the preview', outlines === 2, String(outlines));
+  const pastCrop = s.past;
+  await click('Crop');
+  await waitFor("!!document.querySelector('.crop-dialog')");
+  const title = await evaluate("document.querySelector('.crop-dialog h2').textContent");
+  const edge = await rect('.crop-dialog .cr-h.e');
+  const stageBox = await rect('.crop-dialog .crop-stage');
+  await drag(edge.x, edge.y, edge.x - stageBox.width * 0.3, edge.y);
   await shot('e2e-l2-crop');
-  await click('Done');
+  await click('Apply to 2 layers');
+  s = await S();
+  const crops = ['logo1', 'gif1', 'green1'].map((id) => item(s, id).crop);
+  check('crop: the window crops both selected layers by the right edge', title === 'Crop 2 layers' && crops.slice(0, 2).every((c) => c && near(c.w, 0.7, 0.02) && c.x === 0),
+    `${title}: ${JSON.stringify(crops.slice(0, 2))}`);
+  check('crop: layers that were not selected keep their picture', crops[2] === null, JSON.stringify(crops[2]));
+  check('crop: one undo step, window closed', s.past === pastCrop + 1 && !(await evaluate("!!document.querySelector('.crop-dialog')")), `${pastCrop} -> ${s.past}`);
+  // Back to the logo alone for the keyframe steps.
+  const logoAgain = await rect('[data-item="logo1"]');
+  await clickAt(logoAgain.x, logoAgain.y);
   const clipPath = await evaluate(`document.querySelector('[data-item="logo1"]').style.clipPath`);
   const right = Number(/^inset\(\S+ ([\d.]+)%/.exec(clipPath)?.[1]);
-  check('crop: the preview clips the picture after Done', near(right, 30, 0.1), clipPath);
+  check('crop: the preview clips the picture', near(right, 30, 0.1) && (await S()).ids.join() === 'logo1', clipPath);
 
   // 5. Keyframes: one at 1.0 s, a drag at 5.0 s adds the second; halfway is in between; set the curve.
   await seek(1.0);
@@ -265,13 +280,47 @@ async function run({ evaluate, waitFor, drag, click, clickAt, rect, shot, send }
     `${z5.total.toFixed(1)} s × ${z5.pps.toFixed(1)} px/s in ${z5.view} px`);
   await shot('e2e-l7-zoom-fit');
 
-  // 16. A 70-minute audio file: importing it fits the whole timeline into the window; you can zoom out
-  // further and back in; the ruler stays a handful of labels.
+  // 16. Importing more files into a project that has a timeline: they wait in Media (the Import button stays),
+  // a file dropped from Explorer is imported, and dragging a file onto a track places it there.
+  check('import: the Media panel keeps its Import button', (await evaluate("document.querySelector('.media-head button')?.textContent")) === '+ Import');
+  const before = await S();
+  const mediaBefore = Object.keys(before.p.media).length;
+  const elementsOf = (x) => x.p.clips.length + x.p.tracks.reduce((n, t) => n + t.items.length, 0);
   await evaluate(`(() => { const { id, words, ...info } = __vce.state.project.media.long; __vce.commands.addImports([{ ...info, needsProxy: false }]); })()`);
+  await sleep(400);
+  s = await S();
+  const longId = Object.keys(s.p.media).find((k) => !before.p.media[k]);
+  check('import: a later import lands in Media, not on the timeline', Object.keys(s.p.media).length === mediaBefore + 1 && elementsOf(s) === elementsOf(before)
+    && (await evaluate(`!!document.querySelector('[data-media="${longId}"]')`)), longId);
+  const logoPath = before.p.media.logo.path;
+  const dropAt = await rect('.stage');
+  for (const type of ['dragEnter', 'dragOver', 'drop']) {
+    await send('Input.dispatchDragEvent', { type, x: dropAt.x, y: dropAt.y, data: { items: [], files: [logoPath], dragOperationsMask: 1 } });
+  }
+  await waitFor(`Object.keys(__vce.state.project.media).length === ${mediaBefore + 2}`, 10000).catch(() => {});
+  s = await S();
+  const dropped = Object.values(s.p.media).filter((m) => m.path === logoPath);
+  check('import: a file dropped on the window is imported', dropped.length === 2 && elementsOf(s) === elementsOf(before), `${dropped.length} copies of logo.png in Media`);
+
+  // 17. A 70-minute audio file dragged from Media onto the audio track: placed at the drop time, and the
+  // whole timeline fits the window; you can zoom out further and back in; the ruler stays a handful of labels.
+  const placed = await evaluate(`(() => {
+    const dt = new DataTransfer();
+    document.querySelector('[data-media="${longId}"]').dispatchEvent(new DragEvent('dragstart', { bubbles: true, dataTransfer: dt }));
+    const lane = document.querySelector('.lane.audio');
+    const r = lane.getBoundingClientRect();
+    const at = { bubbles: true, cancelable: true, dataTransfer: dt, clientX: r.left + 2, clientY: r.top + r.height / 2 };
+    lane.dispatchEvent(new DragEvent('dragover', at));
+    lane.dispatchEvent(new DragEvent('drop', at));
+    return true;
+  })()`);
   await sleep(600);
+  s = await S();
+  const longItems = s.p.tracks.flatMap((t) => t.items).filter((i) => i.mediaId === longId);
+  check('drag to timeline: the file is placed on a track at the drop time', placed && longItems.length === 1 && longItems[0].start < 1, JSON.stringify(longItems.map((i) => i.start)));
   const zl = await zoomState();
   const longItem = await rect('.lane.audio .clip:last-child');
-  check('long media: importing 70 minutes fits it to the window', zl.total > 4200 && zl.total * zl.pps <= zl.view && zl.total * zl.pps > zl.view * 0.9 && zl.scroll === 0,
+  check('long media: placing 70 minutes fits the timeline to the window', zl.total > 4200 && zl.total * zl.pps <= zl.view && zl.total * zl.pps > zl.view * 0.9 && zl.scroll === 0,
     `${(zl.total / 60).toFixed(1)} min × ${zl.pps.toFixed(3)} px/s in ${zl.view} px; item ${Math.round(longItem.width)} px`);
   const tickCount = await evaluate("document.querySelectorAll('.ruler .tick').length");
   check('long media: the ruler shows a few labels', tickCount > 3 && tickCount < 60, `${tickCount} labels`);

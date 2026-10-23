@@ -2,8 +2,13 @@
 
 ## Unreleased
 
+- Crop window: **Crop** in the timeline toolbar (next to Split) crops the selected layers, one or several (Ctrl/Shift+click on the timeline or in the preview); ratio presets keep their shape while dragging; other layers are untouched. Replaces the crop mode in the preview.
+- Multi-select: Ctrl/Shift+click adds clips and items; the preview outlines every selected layer; Delete removes them all.
+- Import any time: **+ Import** stays at the top of the Media panel, and files dropped from Explorer on the window are imported. Into an empty timeline files are placed as before; later imports wait in Media until added (+ Main / + Layer / + Audio) or dragged onto a track.
+- Drag a file from Media onto the main track, a layer, an audio track, or the caption row (new layer) to place it at that time.
+- The timeline fits itself when added media makes it longer; editor keys are off while a dialog is open.
 - Timeline zoom: Ctrl + mouse wheel or touchpad pinch zooms at the pointer, − / + buttons and keys (1.5× steps), Fit (0) shows the whole timeline; range 0.02–400 px/s on a log slider (a 70-minute recording fits a laptop screen; it stopped at about 16 minutes); one screen of room after the end.
-- Importing media or opening a project fits the timeline to the window.
+- Opening a project fits the timeline to the window.
 - Ruler labels are drawn only around the visible part, so a zoomed-in long timeline stays light.
 - Fix: a preview drag that stalled for over a second became several undo steps.
 - Fix: a zoomed-in timeline widened the window instead of scrolling (app grid column could grow with its content).

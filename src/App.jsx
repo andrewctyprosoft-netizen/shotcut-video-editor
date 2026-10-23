@@ -8,6 +8,7 @@ import {
 import { timelineWords } from '../core/transcript.js';
 import { api } from './api.js';
 import { initialState, reducer } from './state.js';
+import { CropDialog } from './components/CropDialog.jsx';
 import { ExportDialog } from './components/ExportDialog.jsx';
 import { Inspector } from './components/Inspector.jsx';
 import { JobsBar } from './components/JobsBar.jsx';
@@ -26,6 +27,8 @@ export function App() {
   const [leftTab, setLeftTab] = useState('media');
   const [showSettings, setShowSettings] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showCrop, setShowCrop] = useState(false);
+  const [fileDrag, setFileDrag] = useState(false);
   const { project, time, jobs } = state;
   const stateRef = useRef(state);
   stateRef.current = state;
@@ -109,7 +112,7 @@ export function App() {
         alert(err.message);
       }
     },
-    /** Videos go to the main track, images and GIFs to a layer (or the main track while it is empty), audio to an audio track, subtitles to the caption track. */
+    /** Import files with the open dialog; see addImports for where they go. */
     async importMedia() {
       let infos;
       try {
@@ -120,10 +123,16 @@ export function App() {
       }
       commandsRef.current.addImports(infos);
     },
-    /** Put picked files (probe results from the main process) where they belong; see importMedia. */
+    /**
+     * Add picked or dropped files (probe results from the main process) to the project. Subtitles go to the
+     * caption track. Into an empty timeline, files are also placed: videos on the main track, images and GIFs
+     * on a layer (the main track while it is empty), audio on an audio track. Later imports wait in Media
+     * until they are added (+ Main / + Layer) or dragged onto a track.
+     */
     addImports(infos) {
       const failed = infos.filter((i) => i.error);
       if (failed.length) alert(failed.map((f) => `${f.path}\n${f.error}`).join('\n\n'));
+      const place = !totalDuration(stateRef.current.project);
       for (const info of infos.filter((i) => !i.error)) {
         if (info.kind === 'subtitles') {
           const subs = parseSubtitles(info.text);
@@ -138,12 +147,34 @@ export function App() {
         const at = stateRef.current.time;
         edit((p) => {
           const next = addMedia(p, { ...rest, id });
+          if (!place) return next;
           const kind = mediaKind(rest);
           if (kind === 'video' || (isVisual(rest) && !p.clips.length)) return appendClip(next, id);
           return addItem(next, id, kind === 'audio' && !p.clips.length && !totalDuration(p) ? 0 : at);
         });
         if (needsProxy) startJob('proxy', `Preview copy: ${info.name}`, { mediaId: id, info: rest }, { mediaId: id });
       }
+    },
+    /** Place media dropped from the Media panel: on the main track at the nearest place, on a track, or on a new layer ('new'). */
+    placeMedia(mediaId, target, t) {
+      edit((p) => {
+        const m = p.media[mediaId];
+        if (!m) return p;
+        if (target === 'main') {
+          const id = newId('clip');
+          const next = appendClip(p, mediaId, { id });
+          return moveClipTo(next, id, layout(next).filter((x) => x.clip.id !== id && x.start + x.duration / 2 < t).length);
+        }
+        if (target === 'new') {
+          const trackId = newId('track');
+          return addItem(addTrack(p, isVisual(m) ? 'layer' : 'audio', { id: trackId }), mediaId, t, { trackId });
+        }
+        return addItem(p, mediaId, t, { trackId: target });
+      });
+    },
+    openCrop() {
+      const { project: p, selectedIds } = stateRef.current;
+      if (selectedIds.some((id) => isVisual(p.media[findElement(p, id)?.el.mediaId]))) setShowCrop(true);
     },
     addToTimeline(mediaId) {
       edit((p) => appendClip(p, mediaId));
@@ -209,9 +240,9 @@ export function App() {
       edit((x) => splitAt(x, t));
     },
     deleteSelected() {
-      const { selectedClipId: id, selectedCues: keys } = stateRef.current;
-      if (id) {
-        edit((p) => removeElement(p, id));
+      const { selectedIds: ids, selectedCues: keys } = stateRef.current;
+      if (ids.length) {
+        edit((p) => ids.reduce((q, id) => removeElement(q, id), p));
         dispatch({ type: 'select', clipId: null });
         return;
       }
@@ -288,7 +319,7 @@ export function App() {
   // ----- keyboard -----
   useEffect(() => {
     const onKey = (e) => {
-      if (e.target.closest('input, textarea, select, [contenteditable]')) return;
+      if (e.target.closest('input, textarea, select, [contenteditable]') || document.querySelector('.modal-back')) return;
       const ctrl = e.ctrlKey || e.metaKey;
       const step = (e.shiftKey ? 1 : 1 / (stateRef.current.project.fps || 30));
       if (e.code === 'Space') commands.togglePlay();
@@ -298,7 +329,6 @@ export function App() {
       else if (!ctrl && e.key.toLowerCase() === 's') commands.splitAtPlayhead();
       else if (e.key === 'Delete' || e.key === 'Backspace') commands.deleteSelected();
       else if (e.key === 'Escape') {
-        dispatch({ type: 'crop', id: null });
         dispatch({ type: 'select', clipId: null });
         dispatch({ type: 'selectCues', keys: [] });
       } else if (e.key === 'ArrowLeft') seek(stateRef.current.time - step);
@@ -311,7 +341,29 @@ export function App() {
   }, [commands, seek]);
 
   return (
-    <div className="app">
+    <div
+      className="app"
+      onDragOver={(e) => {
+        if (!e.dataTransfer.types.includes('Files')) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'copy';
+        if (!fileDrag) setFileDrag(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.relatedTarget) setFileDrag(false);
+      }}
+      onDrop={async (e) => {
+        const files = [...e.dataTransfer.files];
+        setFileDrag(false);
+        if (!files.length) return;
+        e.preventDefault();
+        try {
+          commands.addImports(await api.probeDropped(files));
+        } catch (err) {
+          alert(err.message);
+        }
+      }}
+    >
       <TopBar
         state={state}
         commands={commands}
@@ -337,6 +389,8 @@ export function App() {
       <Timeline state={state} items={items} cues={cues} total={total} dispatch={dispatch} onSeek={seek} commands={commands} />
       <JobsBar jobs={jobs} dispatch={dispatch} commands={commands} />
       {showSettings && <SettingsDialog onClose={() => setShowSettings(false)} />}
+      {showCrop && <CropDialog project={project} ids={state.selectedIds} items={items} time={time} edit={edit} onClose={() => setShowCrop(false)} />}
+      {fileDrag && <div className="drop-overlay">Drop to import into the project</div>}
       {showExport && <ExportDialog project={project} edit={edit} onCancel={() => setShowExport(false)} onExport={commands.exportTo} />}
     </div>
   );

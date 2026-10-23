@@ -180,7 +180,6 @@ code { background: #121317; padding: 0 4px; border-radius: 4px; }
 .gz-h.ne { right: -7px; top: -7px; cursor: nesw-resize; }
 .gz-h.sw { left: -7px; bottom: -7px; cursor: nesw-resize; }
 .gz-h.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
-.crop-full { position: absolute; z-index: 49; outline: 1px dashed #ffffff88; background: #0008; pointer-events: none; }
 .crop-box {
   position: absolute; z-index: 50; outline: 2px solid #fff; box-shadow: 0 0 0 1px #0008; cursor: move;
   background-image: linear-gradient(#ffffff40 1px, transparent 1px), linear-gradient(90deg, #ffffff40 1px, transparent 1px);
@@ -198,7 +197,6 @@ code { background: #121317; padding: 0 4px; border-radius: 4px; }
 .cr-h.ne { right: -5px; top: -5px; cursor: nesw-resize; }
 .cr-h.sw { left: -5px; bottom: -5px; cursor: nesw-resize; }
 .cr-h.se { right: -5px; bottom: -5px; cursor: nwse-resize; }
-.crop-done { position: absolute; right: 0; bottom: -34px; padding: 3px 10px; background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
 .guide { position: absolute; z-index: 51; background: #ff4fd8; pointer-events: none; }
 .guide.v { left: 50%; top: 0; bottom: 0; width: 1px; }
 .guide.h { top: 50%; left: 0; right: 0; height: 1px; }
@@ -340,3 +338,24 @@ button.icon.danger:hover { color: var(--danger); }
 .ok { color: #7bd88f; }
 .bad { color: var(--danger); }
 .warn { color: var(--warn); }
+
+/* crop window */
+.crop-dialog { width: auto; max-width: 96vw; max-height: 96vh; overflow: auto; }
+.crop-frame { overflow: hidden; padding: 12px; margin: 0 auto; } /* room for the handles at the picture edges */
+.crop-stage { position: relative; margin: 0 auto; background: #000 repeating-conic-gradient(#222 0 25%, #2c2c2c 0 50%) 0 0 / 16px 16px; }
+.crop-stage img, .crop-stage video { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.crop-stage .crop-box { box-shadow: 0 0 0 2000px #000a; }
+.crop-ratios { flex-wrap: wrap; }
+.row-buttons .grow { flex: 1; }
+.gizmo.also { outline: 1.5px dashed var(--accent); }
+
+/* media panel header, drag to timeline, file drop */
+.media-bin { display: flex; flex-direction: column; min-height: 0; flex: 1; }
+.media-head { display: flex; align-items: center; gap: 8px; padding: 8px 8px 0; }
+.media-head .hint { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.media-item[draggable="true"] { cursor: grab; }
+.lane.drop-target { background: #20d3c222; outline: 1px dashed var(--accent); }
+.drop-overlay {
+  position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; pointer-events: none;
+  background: #0b1f1dcc; color: var(--accent); font-size: 20px; font-weight: 600; border: 3px dashed var(--accent);
+}

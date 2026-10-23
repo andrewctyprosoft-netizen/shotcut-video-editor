@@ -101,22 +101,14 @@ ipcMain.handle('media:pick', async () => {
       { name: 'Subtitles (SRT, VTT)', extensions: SUBTITLE_EXTENSIONS },
     ],
   });
-  if (res.canceled) return [];
-  const { ffprobe } = resolveFfmpeg(settings, appRoot);
-  const out = [];
-  for (const path of res.filePaths) {
-    if (SUBTITLE_EXTENSIONS.includes(extname(path).slice(1).toLowerCase())) {
-      out.push({ path, name: basename(path), kind: 'subtitles', text: readFileSync(path, 'utf8') });
-      continue;
-    }
-    try {
-      out.push(await probe(ffprobe, path));
-      allowMedia(path);
-    } catch (err) {
-      out.push({ path, error: err.message });
-    }
-  }
-  return out;
+  return res.canceled ? [] : probePaths(res.filePaths);
+});
+
+// Files dropped on the window. Only media and subtitle files, so the renderer cannot open up other files.
+ipcMain.handle('media:probe', (_e, paths) => {
+  const known = new Set([...MEDIA_EXTENSIONS, ...SUBTITLE_EXTENSIONS]);
+  const ok = (Array.isArray(paths) ? paths : []).filter((p) => typeof p === 'string' && known.has(extname(p).slice(1).toLowerCase()));
+  return probePaths(ok);
 });
 
 ipcMain.handle('project:open', async () => {
@@ -240,6 +232,25 @@ ipcMain.handle('job:start', (e, { kind, label, payload }) => {
 ipcMain.handle('job:cancel', (_e, id) => jobs.get(id)?.abort());
 
 // ---------- helpers ----------
+
+/** Probe picked or dropped files for import; subtitles are read as text. Allows the media for the preview. */
+async function probePaths(paths) {
+  const { ffprobe } = resolveFfmpeg(settings, appRoot);
+  const out = [];
+  for (const path of paths) {
+    if (SUBTITLE_EXTENSIONS.includes(extname(path).slice(1).toLowerCase())) {
+      out.push({ path, name: basename(path), kind: 'subtitles', text: readFileSync(path, 'utf8') });
+      continue;
+    }
+    try {
+      out.push(await probe(ffprobe, path));
+      allowMedia(path);
+    } catch (err) {
+      out.push({ path, error: err.message });
+    }
+  }
+  return out;
+}
 
 function readProject(filePath) {
   const project = JSON.parse(readFileSync(filePath, 'utf8'));

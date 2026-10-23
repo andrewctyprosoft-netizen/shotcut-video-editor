@@ -1,9 +1,9 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
-  audioGain, baseState, elementState, normCrop, placement, setTransformAt,
+  audioGain, baseState, elementState, placement, setTransformAt,
 } from '../../core/anim.js';
 import {
-  ASPECTS, elementSpan, findElement, frameSize, isStill, isVisual, itemSpan, locate, mapElement, mediaKind, updateElement,
+  ASPECTS, elementSpan, findElement, frameSize, isStill, isVisual, itemSpan, locate, mapElement, mediaKind,
 } from '../../core/project.js';
 import { formatClock } from '../../core/time.js';
 import { mediaUrl } from '../api.js';
@@ -18,12 +18,12 @@ const LOOKAHEAD = 4; // seconds of upcoming layer items kept mounted (preloaded)
 /**
  * Preview stage. The main track plays through two stacked <video> elements driven by PlaybackEngine
  * (gap-free clip changes, transitions shown with CSS); layer items are <video>/<img>/<audio> elements
- * kept in sync with the timeline clock; captions are drawn on top. Click an element to select it, drag
- * it to move, drag a corner to resize; in crop mode, drag the crop box. While playing, the engine's clock
- * drives timeline time; otherwise time drives the engine.
+ * kept in sync with the timeline clock; captions are drawn on top. Click an element to select it (Ctrl/Shift+click
+ * adds more), drag it to move, drag a corner to resize. Cropping is in the Crop window (timeline toolbar).
+ * While playing, the engine's clock drives timeline time; otherwise time drives the engine.
  */
 export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay }) {
-  const { project, time, playing, selectedClipId, selectedCues, captionScopeAll, cropId } = state;
+  const { project, time, playing, selectedClipId, selectedIds, selectedCues, captionScopeAll } = state;
   const v0 = useRef(null);
   const v1 = useRef(null);
   const wraps = [useRef(null), useRef(null)];
@@ -89,8 +89,7 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
   // ----- main track: which clips show now, and how (transition) -----
   const roles = mainRoles(items, time);
   const fx = roles.incoming ? transitionCss(roles.type, roles.progress) : null;
-  const cropping = (el) => cropId && el.id === cropId;
-  const placeOf = (el, m, local, duration, fit) => placement(m, cropping(el) ? null : el.crop, elementState(el, local, duration), frame, fit);
+  const placeOf = (el, m, local, duration, fit) => placement(m, el.crop, elementState(el, local, duration), frame, fit);
 
   // Geometry, transition look and volume of the engine's video slots at timeline time t. Runs on every
   // render, and from the engine itself when it swaps slots, so the incoming clip is styled in that frame.
@@ -119,31 +118,36 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
 
   // ----- selection and direct manipulation on the stage -----
   const dragSeq = useRef(0);
+  /** Where a selected element is drawn now, or null when it is not on screen. */
+  const placeSelected = (id) => {
+    const found = findElement(project, id);
+    const span = found && elementSpan(project, id, items);
+    const m = found && project.media[found.el.mediaId];
+    const visible = span && isVisual(m) && time >= span.start - 1e-6 && time < span.end && !(found.kind === 'item' && found.track.hidden);
+    return visible ? placeOf(found.el, m, clamp(time - span.start, 0, span.duration), span.duration, found.kind === 'clip' ? project.fit : 'fit') : null;
+  };
   const selected = findElement(project, selectedClipId);
-  const selectedSpan = selected ? elementSpan(project, selectedClipId, items) : null;
-  const selectedMedia = selected && project.media[selected.el.mediaId];
-  const selectedVisible = selected && selectedSpan && isVisual(selectedMedia)
-    && time >= selectedSpan.start - 1e-6 && time < selectedSpan.end && !(selected.kind === 'item' && selected.track.hidden);
-  const selectedPlace = selectedVisible
-    ? placeOf(selected.el, selectedMedia, clamp(time - selectedSpan.start, 0, selectedSpan.duration), selectedSpan.duration, selected.kind === 'clip' ? project.fit : 'fit')
-    : null;
+  const selectedPlace = selected ? placeSelected(selectedClipId) : null;
+  const otherPlaces = selectedIds.filter((id) => id !== selectedClipId).map((id) => [id, placeSelected(id)]).filter(([, p]) => p);
 
-  /** Drag on the stage: 'move' / 'scale' an element, or a crop edge ('n', 'se', 'crop' = whole box, ...). */
+  /** Drag on the stage: 'move' or 'scale' an element. Ctrl/Shift+click adds it to (or takes it out of) the selection. */
   const beginDrag = (e, id, mode) => {
     if (e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
-    if (id !== selectedClipId) dispatch({ type: 'select', clipId: id });
+    if (mode === 'move' && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+      dispatch({ type: 'select', clipId: id, add: true });
+      return;
+    }
+    if (id !== selectedClipId || selectedIds.length > 1) dispatch({ type: 'select', clipId: id });
     const found = findElement(project, id);
     const span = elementSpan(project, id, items);
     const m = found && project.media[found.el.mediaId];
     if (!found || !span || !isVisual(m)) return;
     const local = clamp(time - span.start, 0, span.duration);
     const start = baseState(found.el, local);
-    const crop0 = normCrop(found.el.crop);
     const rect = stageRef.current.getBoundingClientRect();
-    const p0 = placement(m, mode === 'move' || mode === 'scale' ? found.el.crop : null, elementState(found.el, local, span.duration), frame,
-      found.kind === 'clip' ? project.fit : 'fit');
+    const p0 = placement(m, found.el.crop, elementState(found.el, local, span.duration), frame, found.kind === 'clip' ? project.fit : 'fit');
     const key = `drag:stage:${id}:${++dragSeq.current}`;
     const cx = rect.left + ((p0?.box.left ?? 0) + (p0?.box.width ?? 0) / 2) * (rect.width / frame[0]);
     const cy = rect.top + ((p0?.box.top ?? 0) + (p0?.box.height ?? 0) / 2) * (rect.height / frame[1]);
@@ -160,29 +164,9 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
         if (sy) y = 0.5;
         setGuides({ x: sx, y: sy });
         edit((p) => mapElement(p, id, (el) => setTransformAt(el, local, { x, y }, fps)), key);
-      } else if (mode === 'scale') {
+      } else {
         const scale = Math.max(0.02, (start.scale * Math.hypot(ev.clientX - cx, ev.clientY - cy)) / d0);
         edit((p) => mapElement(p, id, (el) => setTransformAt(el, local, { scale }, fps)), key);
-      } else {
-        // Crop handles move in fractions of the whole (uncropped) picture.
-        const fx0 = (ev.clientX - e.clientX) / ((p0.full.width / frame[0]) * rect.width);
-        const fy0 = (ev.clientY - e.clientY) / ((p0.full.height / frame[1]) * rect.height);
-        const c = { ...crop0 };
-        if (mode === 'crop') {
-          c.x = clamp(crop0.x + fx0, 0, 1 - crop0.w);
-          c.y = clamp(crop0.y + fy0, 0, 1 - crop0.h);
-        }
-        if (mode.includes('w')) {
-          c.x = clamp(crop0.x + fx0, 0, crop0.x + crop0.w - 0.02);
-          c.w = crop0.w - (c.x - crop0.x);
-        }
-        if (mode.includes('e')) c.w = clamp(crop0.w + fx0, 0.02, 1 - crop0.x);
-        if (mode.includes('n')) {
-          c.y = clamp(crop0.y + fy0, 0, crop0.y + crop0.h - 0.02);
-          c.h = crop0.h - (c.y - crop0.y);
-        }
-        if (mode.includes('s')) c.h = clamp(crop0.h + fy0, 0.02, 1 - crop0.y);
-        edit((p) => updateElement(p, id, { crop: normCrop(c) }), key);
       }
     };
     const up = () => {
@@ -196,7 +180,6 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
 
   const onStageDown = (e) => {
     if (e.target !== e.currentTarget && !e.target.classList.contains('main-slot')) return;
-    if (cropId) dispatch({ type: 'crop', id: null });
     dispatch({ type: 'select', clipId: null });
     dispatch({ type: 'selectCues', keys: [] });
   };
@@ -233,7 +216,7 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
             );
           })}
           {fx?.dip && <div className="dip" style={{ background: fx.dip.color, opacity: fx.dip.opacity }} />}
-          <Layers project={project} time={time} playing={playing} frame={frame} cropId={cropId} onDown={(e, id) => beginDrag(e, id, 'move')} />
+          <Layers project={project} time={time} playing={playing} frame={frame} onDown={(e, id) => beginDrag(e, id, 'move')} />
           {empty && <div className="stage-empty">Import media to start</div>}
           {project.captions.enabled && (
             <CaptionOverlay
@@ -245,13 +228,11 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
               edit={edit}
             />
           )}
-          {selectedPlace && !cropping(selected.el) && (
+          {otherPlaces.map(([id, p]) => <div key={id} className="gizmo also" data-also={id} style={rectCss(p.box, frame)} />)}
+          {selectedPlace && (
             <div className="gizmo" style={rectCss(selectedPlace.box, frame)}>
               {['nw', 'ne', 'sw', 'se'].map((h) => <span key={h} className={`gz-h ${h}`} onPointerDown={(e) => beginDrag(e, selected.el.id, 'scale')} />)}
             </div>
-          )}
-          {selectedPlace && cropping(selected.el) && (
-            <CropBox place={selectedPlace} crop={normCrop(selected.el.crop)} frame={frame} onDown={(e, mode) => beginDrag(e, selected.el.id, mode)} onDone={() => dispatch({ type: 'crop', id: null })} />
           )}
           {guides?.x && <div className="guide v" />}
           {guides?.y && <div className="guide h" />}
@@ -276,7 +257,7 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
 }
 
 /** Layer and audio track items near the playhead, each kept in sync with the timeline. */
-function Layers({ project, time, playing, frame, cropId, onDown }) {
+function Layers({ project, time, playing, frame, onDown }) {
   const fps = project.fps || 30;
   const out = [];
   (project.tracks ?? []).forEach((track, ti) => {
@@ -287,14 +268,14 @@ function Layers({ project, time, playing, frame, cropId, onDown }) {
       if (!m) continue;
       out.push(
         <LayerItem key={item.id} item={item} track={track} z={10 + ti} media={m} span={span} time={time} playing={playing}
-          frame={frame} cropping={cropId === item.id} onDown={onDown} />,
+          frame={frame} onDown={onDown} />,
       );
     }
   });
   return out;
 }
 
-function LayerItem({ item, track, z, media, span, time, playing, frame, cropping, onDown }) {
+function LayerItem({ item, track, z, media, span, time, playing, frame, onDown }) {
   const ref = useRef(null);
   const kind = mediaKind(media);
   const active = time >= span.start - 1e-6 && time < span.end;
@@ -324,26 +305,11 @@ function LayerItem({ item, track, z, media, span, time, playing, frame, cropping
 
   const url = mediaUrl(media.proxyPath || media.path);
   if (kind === 'audio' || track.kind === 'audio') return <audio ref={ref} src={url} preload="auto" crossOrigin="anonymous" />;
-  const p = placement(media, cropping ? null : item.crop, elementState(item, local, span.duration), frame, 'fit');
+  const p = placement(media, item.crop, elementState(item, local, span.duration), frame, 'fit');
   const style = p ? { ...pictureCss(p, frame), zIndex: z, visibility: active && !track.hidden ? 'visible' : 'hidden', filter: cssFilter(item) } : { display: 'none' };
   const props = { className: 'el layer-el', style, 'data-item': item.id, onPointerDown: (e) => onDown(e, item.id), draggable: false };
   if (kind === 'video') return <video ref={ref} src={url} preload="auto" crossOrigin="anonymous" {...props} />;
   return <img src={url} alt="" crossOrigin="anonymous" {...props} />;
-}
-
-/** Crop mode: the whole picture faded, the kept part bright, eight handles and a Done button. */
-function CropBox({ place, crop, frame, onDown, onDone }) {
-  const full = place.full;
-  const box = { left: full.left + crop.x * full.width, top: full.top + crop.y * full.height, width: crop.w * full.width, height: crop.h * full.height };
-  return (
-    <>
-      <div className="crop-full" style={rectCss(full, frame)} />
-      <div className="crop-box" style={rectCss(box, frame)} onPointerDown={(e) => onDown(e, 'crop')}>
-        {['n', 's', 'e', 'w', 'nw', 'ne', 'sw', 'se'].map((h) => <span key={h} className={`cr-h ${h}`} onPointerDown={(e) => onDown(e, h)} />)}
-        <button className="crop-done" onPointerDown={(e) => e.stopPropagation()} onClick={onDone}>Done</button>
-      </div>
-    </>
-  );
 }
 
 /**

@@ -9,6 +9,7 @@ const stub = {
   setSettings: async (s) => s,
   toolStatus: unavailable,
   pickMedia: unavailable,
+  probeDropped: unavailable,
   openProject: unavailable,
   saveProject: unavailable,
   pickTranscript: unavailable,

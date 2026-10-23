@@ -24,3 +24,15 @@ test('a job that already ended keeps its end state when its start arrives late',
   s = reducer(s, { type: 'job', job: { id: 'j', status: 'running', progress: 0, elementId: 'e' } });
   assert.deepEqual([s.jobs.j.status, s.jobs.j.elementId, s.jobs.j.result.ok], ['done', 'e', 1]);
 });
+
+test('selection: Ctrl/Shift+click adds and removes; a plain click picks one; captions clear clips', () => {
+  let s = reducer(initialState, { type: 'select', clipId: 'a' });
+  s = reducer(s, { type: 'select', clipId: 'b', add: true });
+  assert.deepEqual([s.selectedIds, s.selectedClipId], [['a', 'b'], 'b']);
+  s = reducer(s, { type: 'select', clipId: 'b', add: true });
+  assert.deepEqual([s.selectedIds, s.selectedClipId], [['a'], 'a']);
+  s = reducer(s, { type: 'select', clipId: 'c' });
+  assert.deepEqual(s.selectedIds, ['c']);
+  s = reducer(s, { type: 'selectCues', keys: ['w:x:0'] });
+  assert.deepEqual([s.selectedIds, s.selectedClipId], [[], null]);
+});

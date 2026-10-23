@@ -185,6 +185,64 @@ export function normCrop(crop) {
 }
 
 /**
+ * The largest centred crop with picture aspect ratio `r` (width / height) for a source.
+ * @param {{width: number, height: number}} media
+ * @param {number} r
+ * @returns {{x: number, y: number, w: number, h: number}}
+ */
+export function ratioCrop(media, r) {
+  const src = media.width / media.height;
+  if (src > r) {
+    const w = r / src;
+    return { x: (1 - w) / 2, y: 0, w, h: 1 };
+  }
+  const h = src / r;
+  return { x: 0, y: (1 - h) / 2, w: 1, h };
+}
+
+/**
+ * Move one edge or corner of a crop (`handle`: n, s, e, w, ne, nw, se, sw, or 'box' to move it whole) by
+ * (dx, dy) in fractions of the source. With `ratio` (picture width / height), the crop keeps that shape.
+ * @param {{x: number, y: number, w: number, h: number}} c0
+ * @param {string} handle
+ * @param {number} dx
+ * @param {number} dy
+ * @param {{width: number, height: number}} media
+ * @param {number | null} [ratio]
+ * @returns {{x: number, y: number, w: number, h: number}}
+ */
+export function dragCrop(c0, handle, dx, dy, media, ratio = null) {
+  const c = { ...c0 };
+  if (handle === 'box') {
+    c.x = Math.min(Math.max(c0.x + dx, 0), 1 - c0.w);
+    c.y = Math.min(Math.max(c0.y + dy, 0), 1 - c0.h);
+    return c;
+  }
+  const right = c0.x + c0.w;
+  const bottom = c0.y + c0.h;
+  if (handle.includes('w')) c.x = Math.min(Math.max(c0.x + dx, 0), right - MIN_CROP);
+  if (handle.includes('w')) c.w = right - c.x;
+  if (handle.includes('e')) c.w = Math.min(Math.max(c0.w + dx, MIN_CROP), 1 - c0.x);
+  if (handle.includes('n')) c.y = Math.min(Math.max(c0.y + dy, 0), bottom - MIN_CROP);
+  if (handle.includes('n')) c.h = bottom - c.y;
+  if (handle.includes('s')) c.h = Math.min(Math.max(c0.h + dy, MIN_CROP), 1 - c0.y);
+  if (!ratio) return c;
+  // Keep the shape: width / height in source fractions is ratio * H / W.
+  const rf = (ratio * media.height) / media.width;
+  const vertical = (handle === 'n' || handle === 's');
+  if (vertical) c.w = c.h * rf;
+  else c.h = c.w / rf;
+  const scale = Math.min(1, 1 / c.w, 1 / c.h);
+  c.w *= scale;
+  c.h *= scale;
+  if (handle.includes('w')) c.x = right - c.w;
+  else if (!handle.includes('e')) c.x = c0.x + (c0.w - c.w) / 2;
+  if (handle.includes('n')) c.y = bottom - c.h;
+  else if (!handle.includes('s')) c.y = c0.y + (c0.h - c.h) / 2;
+  return normCrop(c);
+}
+
+/**
  * Whether a crop leaves the whole picture.
  * @param {object | null} crop
  * @returns {boolean}

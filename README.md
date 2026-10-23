@@ -13,10 +13,10 @@ Status: **0.3.0** (layers, keyframes, effects, background removal; see [docs/pla
 | Feature | How |
 |:--------|:----|
 | Import | Video (MP4, MOV, MKV, WebM, AVI…), audio (MP3, WAV, M4A…), images (PNG, JPG, WebP, BMP), GIF and APNG, subtitles (SRT, VTT); files the preview can't play (HEVC, MKV, ProRes) get a 720p preview copy automatically |
-| Where imports go | Videos to the main track, images and GIFs to a layer at the playhead (or the main track while it is empty), audio to an audio track at the playhead, subtitles to the caption track |
+| Where imports go | **+ Import** in the Media panel (always there), Import media in the top bar, or drop files from Explorer on the window. Into an empty timeline, files are placed: videos on the main track, images and GIFs on a layer (or the main track while it is empty), audio on an audio track. Later imports wait in Media: add them with **+ Main** / **+ Layer** / **+ Audio**, or drag them onto a track (main, a layer, an audio track, or the caption row for a new layer). Subtitles go to the caption track |
 | Layers | Any number of layer tracks over the main track and audio tracks under it; the top layer is in front; reorder layers (▲▼), hide, mute, delete; drag an item to another layer, or above the top layer for a new one; Bring forward / Send backward; lift a main clip to a layer (picture-in-picture) or put a layer item on the main track |
-| Timeline | Split (S) the selected clip, image, GIF or audio at the playhead; drag an edge to trim or lengthen (images and GIFs have no fixed length); drag main clips to reorder; snapping to the playhead and clip edges; every drag is one undo step; zoom with Ctrl + mouse wheel or touchpad pinch (at the pointer), − / + buttons or keys, the slider, or **Fit** (0) to see the whole timeline; importing media or opening a project fits the timeline to the window automatically, and long recordings (hours) zoom out to fit |
-| Position, size, crop | Click a picture in the preview to select it, drag to move (snaps to the centre), drag a corner to resize; **Crop in preview** shows the whole picture with a crop box and eight handles, or type left/top/right/bottom, or pick 16:9, 9:16, 1:1, 4:3; the canvas ratio (16:9, 9:16, 1:1, 4:5, 4:3) is next to the play button |
+| Timeline | Ctrl/Shift+click clips (on the timeline or in the preview) to select several for Crop and Delete; split (S) the selected clip, image, GIF or audio at the playhead; drag an edge to trim or lengthen (images and GIFs have no fixed length); drag main clips to reorder; snapping to the playhead and clip edges; every drag is one undo step; zoom with Ctrl + mouse wheel or touchpad pinch (at the pointer), − / + buttons or keys, the slider, or **Fit** (0) to see the whole timeline; importing media or opening a project fits the timeline to the window automatically, and long recordings (hours) zoom out to fit |
+| Position, size, crop | Click a picture in the preview to select it, drag to move (snaps to the centre), drag a corner to resize. **Crop** (timeline toolbar, next to Split) opens a crop window for the selected layers: crop box with eight handles, ratios (Free, Original, 16:9, 9:16, 1:1, 4:3, 3:4, which keep their shape while you drag), or typed left/top/right/bottom; Apply gives the same crop to every selected layer and leaves the others alone. The canvas ratio (16:9, 9:16, 1:1, 4:5, 4:3) is next to the play button |
 | Keyframes | Add keyframes for position, size and opacity; with keyframes, moving or resizing at the playhead sets a keyframe there; pick the curve to the next keyframe (linear, ease in, ease out, ease in-out, hold) |
 | In and out effects | Fade, slide from or to any side, zoom in, zoom out, pop/shrink, with a length; on any picture |
 | Transitions | 14 FFmpeg `xfade` transitions between main clips (fade, dip to black/white, wipes, slides, circle, zoom…), now also shown in the preview (CSS look-alikes) |
@@ -66,14 +66,14 @@ For development with hot reload, use `npm run dev`.
 
 ## Use
 
-1. **Import media** (top bar): video, audio, images, GIFs, or an `.srt` / `.vtt` file.
+1. **Import media** (top bar, or **+ Import** in Media, or drop files on the window): video, audio, images, GIFs, or an `.srt` / `.vtt` file. Add more files at any time; drag them onto a track.
 2. In **Media**, press **Transcribe** on a video or audio file. Captions appear when it finishes; **Download captions** is on the card.
-3. Arrange: drag clips on the timeline, drag pictures in the preview, **Crop in preview**, add **keyframes**, pick **in/out effects** and **transitions** in the **Clip** tab.
+3. Arrange: drag clips on the timeline, drag pictures in the preview, select layers (Ctrl+click for several) and press **Crop**, add **keyframes**, pick **in/out effects** and **transitions** in the **Clip** tab.
 4. Style captions in the **Captions** tab or by dragging them in the preview; untick **All captions** to change only the captions you pick.
 5. Remove a background in the **Clip** tab (**AI** or **Colour key**).
 6. **Export** an MP4, or **Download…** the captions. Projects save as `.shotcut` (JSON; media is referenced, not copied). Projects from 0.2 open as they were.
 
-Keys: Space play/pause · S split · Del delete · Esc deselect · ←/→ one frame · Shift+←/→ one second · Ctrl+Z / Ctrl+Y · Ctrl+S · + / − zoom the timeline · 0 fit · Ctrl+wheel zoom at the pointer.
+Keys: Space play/pause · S split · Del delete (all selected) · Esc deselect · Ctrl/Shift+click select more · ←/→ one frame · Shift+←/→ one second · Ctrl+Z / Ctrl+Y · Ctrl+S · + / − zoom the timeline · 0 fit · Ctrl+wheel zoom at the pointer.
 Double-click the preview background to play or pause.
 
 ## Files
@@ -110,7 +110,7 @@ npm test
 - `npm run smoke` opens the real window on a sample project and saves `dev/out/smoke.png`.
 - `npm run e2e` drives the real window over the DevTools protocol with real mouse input, in two runs:
   - `dev/tools/e2e.mjs` (18 checks): drag-trim, drag-reorder, undo, text cut, gap-free playback, caption and export presets, Settings.
-  - `dev/tools/e2e-layers.mjs` (37 checks): layer placement and stacking, click-select, move with snap, corner resize, crop, keyframes and curves, fade-in, moving items between layers, +6 dB through Web Audio, the transition preview, moving the caption box for all and for selected captions, caption trim, subtitle move, colour-key background removal, timeline zoom (Ctrl+wheel anchor, buttons, keys, Fit), and a 70-minute file fitting the window on import.
+  - `dev/tools/e2e-layers.mjs` (45 checks): layer placement and stacking, click-select, Ctrl+click multi-select, move with snap, corner resize, the Crop window on two layers (others untouched), keyframes and curves, fade-in, moving items between layers, +6 dB through Web Audio, the transition preview, moving the caption box for all and for selected captions, caption trim, subtitle move, colour-key background removal, timeline zoom (Ctrl+wheel anchor, buttons, keys, Fit), later imports landing in Media, a file dropped on the window, dragging media onto a track, and a 70-minute file fitting the window.
   - Screenshots go to `dev/out/e2e-*.png`.
 
 ## How Export Works

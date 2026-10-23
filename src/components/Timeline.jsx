@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { projectCues, setCueTiming } from '../../core/captions.js';
 import {
-  addTrack, elementSpan, findElement, isStill, itemSpan, layout, mediaKind, moveClipTo, moveItem, moveTrack, newId,
+  addTrack, elementSpan, findElement, isStill, isVisual, itemSpan, layout, mediaKind, moveClipTo, moveItem, moveTrack, newId,
   removeTrack, trimClip, trimItem, updateTrack,
 } from '../../core/project.js';
 import { formatClock, snapTime } from '../../core/time.js';
@@ -17,6 +17,8 @@ const sliderOf = (pps) => Math.log(pps / MIN_PPS) / Math.log(MAX_PPS / MIN_PPS);
 const ppsOf = (f) => MIN_PPS * (MAX_PPS / MIN_PPS) ** f;
 const SNAP_PX = 8;
 const DRAG_PX = 3;
+/** Drag type for media dragged from the Media panel onto a track. */
+export const MEDIA_DRAG = 'application/x-shotcut-media';
 const HEAD = 156; // track header column, px (matches .row .head in styles.css)
 
 /**
@@ -28,7 +30,8 @@ const HEAD = 156; // track header column, px (matches .row .head in styles.css)
  * A drag previews live and commits as one undo step.
  */
 export function Timeline({ state, items, cues, total, dispatch, onSeek, commands }) {
-  const { project, time, selectedClipId, selectedCues } = state;
+  const { project, time, selectedClipId, selectedIds, selectedCues } = state;
+  const [dropAt, setDropAt] = useState(null); // track id, 'main' or 'new' while media is dragged over it
   const [pps, setPps] = useState(40); // pixels per second
   const [scrollX, setScrollX] = useState(0);
   const [drag, setDrag] = useState(null);
@@ -36,6 +39,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
   const scrollRef = useRef(null);
   const innerRef = useRef(null);
   const fps = project.fps || 30;
+  const tracks0 = project.tracks ?? [];
 
   const edgesExcept = (id) => {
     const out = [0, time];
@@ -145,6 +149,11 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
   };
 
   const pickElement = (e, id, kind, edge) => {
+    if (kind === 'move' && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+      e.stopPropagation();
+      dispatch({ type: 'select', clipId: id, add: true });
+      return;
+    }
     dispatch({ type: 'select', clipId: id });
     const found = findElement(project, id);
     beginDrag(e, { kind, edge, clipId: id, trackId: found?.track?.id, trackKind: found?.track?.kind, newTrackId: newId('track') });
@@ -223,17 +232,39 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
   const zoomFns = useRef({});
   zoomFns.current = { zoomTo, zoomFit };
 
-  // Fit the whole timeline into the window when media is added (import) or a project is opened.
-  const mediaCount = Object.keys(project.media).length;
-  const seenMedia = useRef(mediaCount);
+  // Fit the whole timeline into the window when added media makes it longer (import, + Main / + Layer,
+  // a drop) and when a project is opened. Trims and splits keep the zoom.
+  const elementCount = project.clips.length + tracks0.reduce((n, t) => n + t.items.length, 0);
+  const seen = useRef({ n: elementCount, total });
   useEffect(() => {
-    if (mediaCount > seenMedia.current) zoomFns.current.zoomFit();
-    seenMedia.current = mediaCount;
-  }, [mediaCount]);
+    const prev = seen.current;
+    if (elementCount > prev.n && total > prev.total + 1e-6) zoomFns.current.zoomFit();
+    seen.current = { n: elementCount, total };
+  }, [elementCount, total]);
   useEffect(() => {
-    seenMedia.current = Object.keys(project.media).length;
+    seen.current = { n: elementCount, total };
     zoomFns.current.zoomFit();
   }, [state.loadedAt]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Drop target props for a lane: media dragged from the Media panel lands there at the pointer's time. */
+  const dropProps = (target) => ({
+    onDragOver: (e) => {
+      if (!e.dataTransfer.types.includes(MEDIA_DRAG)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+      if (dropAt !== target) setDropAt(target);
+    },
+    onDragLeave: () => setDropAt(null),
+    onDrop: (e) => {
+      const id = e.dataTransfer.getData(MEDIA_DRAG);
+      setDropAt(null);
+      if (!id) return;
+      e.preventDefault();
+      e.stopPropagation();
+      commands.placeMedia(id, target, Math.max(0, timeAt(e.clientX)));
+    },
+  });
+  const dropClass = (target) => (dropAt === target ? ' drop-target' : '');
 
   useLayoutEffect(() => {
     if (pendingScroll.current === null || !scrollRef.current) return;
@@ -311,7 +342,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
       <div
         key={it.id}
         data-clip={it.id}
-        className={`clip item k-${mediaKind(m)}${it.id === selectedClipId ? ' selected' : ''}${isDragged ? ' dragged' : ''}`}
+        className={`clip item k-${mediaKind(m)}${selectedIds.includes(it.id) ? ' selected' : ''}${isDragged ? ' dragged' : ''}`}
         style={style}
         onPointerDown={(e) => pickElement(e, it.id, 'move')}
         title={`${m?.name ?? 'missing'} · ${formatClock(span.start)}–${formatClock(span.end)}`}
@@ -348,7 +379,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
           ✕
         </button>
       </div>
-      <div className={`lane ${t.kind}`} data-track={t.id} onPointerDown={laneDown}>
+      <div className={`lane ${t.kind}${dropClass(t.id)}`} data-track={t.id} onPointerDown={laneDown} {...dropProps(t.id)}>
         {t.items.map((it) => itemView(t, it))}
       </div>
     </div>
@@ -360,7 +391,8 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
     <section className="timeline">
       <div className="tl-toolbar">
         <button onClick={commands.splitAtPlayhead} disabled={!items.length && !tracks.some((t) => t.items.length)} title="Split at playhead (S)">Split</button>
-        <button onClick={commands.deleteSelected} disabled={!selectedClipId && !selectedCues.length} title="Delete selected (Del)">Delete</button>
+        <button onClick={commands.openCrop} disabled={!(selectedIds.some((id) => { const f = findElement(project, id); return f && isVisual(project.media[f.el.mediaId]) && f.track?.kind !== 'audio'; }))} title="Crop the selected layers (Ctrl+click on the timeline to pick several)">Crop</button>
+        <button onClick={commands.deleteSelected} disabled={!selectedIds.length && !selectedCues.length} title="Delete selected (Del)">Delete</button>
         <button onClick={() => dispatch({ type: 'edit', fn: (p) => addTrack(p, 'layer') })} title="Add an empty layer in front">+ Layer</button>
         <button onClick={() => dispatch({ type: 'edit', fn: (p) => addTrack(p, 'audio') })} title="Add an empty audio track">+ Audio track</button>
         <span className="clock">{formatClock(time)}</span>
@@ -404,7 +436,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
                 👁
               </button>
             </div>
-            <div className="lane caption-track" onPointerDown={laneDown}>
+            <div className={`lane caption-track${dropClass('new')}`} onPointerDown={laneDown} {...dropProps('new')}>
               {shownCues.map((c) => (
                 <div
                   key={c.key}
@@ -433,7 +465,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
                 {project.main?.muted ? '🔇' : '🔊'}
               </button>
             </div>
-            <div className="lane track video-track" onPointerDown={laneDown}>
+            <div className={`lane track video-track${dropClass('main')}`} onPointerDown={laneDown} {...dropProps('main')}>
               {shownItems.map((it) => {
                 const m = project.media[it.clip.mediaId];
                 const isDragged = drag?.clipId === it.clip.id;
@@ -445,7 +477,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
                   <div
                     key={it.clip.id}
                     data-clip={it.clip.id}
-                    className={`clip k-${mediaKind(m)}${it.clip.id === selectedClipId ? ' selected' : ''}${m?.hasVideo ? '' : ' audio'}${mainMove && isDragged ? ' ghost' : ''}`}
+                    className={`clip k-${mediaKind(m)}${selectedIds.includes(it.clip.id) ? ' selected' : ''}${m?.hasVideo ? '' : ' audio'}${mainMove && isDragged ? ' ghost' : ''}`}
                     style={style}
                     onPointerDown={(e) => pickElement(e, it.clip.id, 'move')}
                     title={`${m?.name ?? 'missing'} · ${formatClock(it.clip.in)}–${formatClock(it.clip.out)}${it.clip.speed !== 1 ? ` · ${it.clip.speed}×` : ''}`}

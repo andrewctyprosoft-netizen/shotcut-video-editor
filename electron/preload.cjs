@@ -1,5 +1,5 @@
 // Preload bridge (CommonJS: sandboxed preloads cannot be ES modules). Exposes a small, typed API as window.api.
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 /** Subscribe to a main-process event; returns an unsubscribe function. */
 function on(channel, cb) {
@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('api', {
   setSettings: (next) => ipcRenderer.invoke('settings:set', next),
   toolStatus: () => ipcRenderer.invoke('tools:status'),
   pickMedia: () => ipcRenderer.invoke('media:pick'),
+  /** Import files dropped on the window (File objects from a drop event). */
+  probeDropped: (files) => ipcRenderer.invoke('media:probe', [...files].map((f) => webUtils.getPathForFile(f)).filter(Boolean)),
   openProject: () => ipcRenderer.invoke('project:open'),
   saveProject: (args) => ipcRenderer.invoke('project:save', args),
   pickTranscript: () => ipcRenderer.invoke('transcript:pick'),

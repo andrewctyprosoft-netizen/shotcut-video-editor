@@ -15,7 +15,6 @@ import { CaptionLine } from './CaptionOverlay.jsx';
 
 const FONTS = ['Arial', 'Segoe UI', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Georgia', 'Impact', 'Calibri'];
 const SAMPLE = [{ text: 'Your' }, { text: 'words' }, { text: 'here' }];
-const CROP_RATIOS = [['free', 'Free'], [16 / 9, '16:9'], [9 / 16, '9:16'], [1, '1:1'], [4 / 3, '4:3']];
 
 /** Right panel: the selected clip or item, caption style and project settings. */
 export function Inspector({ state, items, cues, edit, dispatch, commands, onSeek }) {
@@ -45,7 +44,7 @@ export function Inspector({ state, items, cues, edit, dispatch, commands, onSeek
 }
 
 function ClipTab({ state, items, edit, dispatch, commands, onSeek }) {
-  const { project, time, selectedClipId, cropId, jobs } = state;
+  const { project, time, selectedClipId, selectedIds, jobs } = state;
   const found = findElement(project, selectedClipId);
   if (!found) {
     return <p className="hint">Select a clip on the timeline or in the preview to trim it, move or resize it, animate it, crop it or change its volume.</p>;
@@ -75,6 +74,7 @@ function ClipTab({ state, items, edit, dispatch, commands, onSeek }) {
   return (
     <>
       <h3 title={m?.path}>{m?.name}</h3>
+      {selectedIds.length > 1 && <p className="hint">{selectedIds.length} selected (Ctrl+click to change) · showing the last one picked. Crop and Delete apply to all.</p>}
       <p className="hint">
         {found.kind === 'clip' ? 'Main track' : `${found.track.kind === 'layer' ? 'Layer' : 'Audio'} track`} · {kind}
         {' · '}{formatClock(span.start)}–{formatClock(span.end)}
@@ -148,23 +148,13 @@ function ClipTab({ state, items, edit, dispatch, commands, onSeek }) {
 
           <h4>Crop</h4>
           <div className="row-buttons">
-            <button className={cropId === el.id ? 'on' : ''} onClick={() => dispatch({ type: 'crop', id: cropId === el.id ? null : el.id })} disabled={!inside}>
-              {cropId === el.id ? 'Done cropping' : 'Crop in preview'}
-            </button>
+            <button onClick={commands.openCrop} title="Crop the selected layers (also in the timeline toolbar)">Crop…</button>
             <button onClick={() => set({ crop: null })} disabled={!el.crop}>Reset crop</button>
-          </div>
-          <div className="seg">
-            {CROP_RATIOS.map(([r, label]) => (
-              <button key={label} onClick={() => set({ crop: r === 'free' ? el.crop : ratioCrop(m, r) })}>{label}</button>
-            ))}
-          </div>
-          <div className="row4">
-            {[['Left', crop.x, (v) => ({ x: v, w: crop.w + crop.x - v })], ['Top', crop.y, (v) => ({ y: v, h: crop.h + crop.y - v })],
-              ['Right', 1 - crop.x - crop.w, (v) => ({ w: 1 - crop.x - v })], ['Bottom', 1 - crop.y - crop.h, (v) => ({ h: 1 - crop.y - v })]].map(([label, v, patch]) => (
-                <Field key={label} label={`${label} %`}>
-                  <input type="number" min={0} max={98} step={1} value={Math.round(v * 100)} onChange={(e) => set({ crop: normCrop({ ...crop, ...patch(Number(e.target.value) / 100) }) }, `crop${label}`)} />
-                </Field>
-            ))}
+            {el.crop && (
+              <span className="hint">
+                Keeps {Math.round(crop.w * 100)}% × {Math.round(crop.h * 100)}% of the picture
+              </span>
+            )}
           </div>
         </>
       )}
@@ -487,17 +477,6 @@ function ProjectTab({ project, edit }) {
       </Field>
     </>
   );
-}
-
-/** Centred crop with a picture aspect ratio `r` (width / height). */
-function ratioCrop(m, r) {
-  const src = m.width / m.height;
-  if (src > r) {
-    const w = r / src;
-    return { x: (1 - w) / 2, y: 0, w, h: 1 };
-  }
-  const h = src / r;
-  return { x: 0, y: (1 - h) / 2, w: 1, h };
 }
 
 function Field({ label, children }) {

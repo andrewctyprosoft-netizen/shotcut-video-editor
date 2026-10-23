@@ -90,3 +90,21 @@ test('volume in dB with mute, and audio fades', () => {
   assert.equal(audioGain(el, 5, 10), 1);
   assert.ok(near(audioGain(el, 9, 10), 0.5));
 });
+
+test('crop window maths: ratio presets, free edge drags, and drags that keep a ratio', async () => {
+  const { dragCrop, ratioCrop } = await import('../../core/anim.js');
+  const m = { width: 1920, height: 1080 };
+  const sq = ratioCrop(m, 1);
+  assert.ok(near(sq.w, 1080 / 1920) && sq.h === 1 && near(sq.x, (1 - 1080 / 1920) / 2));
+  assert.deepEqual(ratioCrop(m, 16 / 9), { x: 0, y: 0, w: 1, h: 1 });
+  const full = { x: 0, y: 0, w: 1, h: 1 };
+  const e = dragCrop(full, 'e', -0.3, 0, m);
+  assert.ok(near(e.w, 0.7) && e.h === 1, 'free: only the width');
+  const moved = dragCrop({ x: 0, y: 0, w: 0.5, h: 0.5 }, 'box', 0.8, 0.1, m);
+  assert.deepEqual([moved.x, moved.y], [0.5, 0.1], 'the box stays inside the picture');
+  const locked = dragCrop(sq, 'se', -0.1, 0, m, 1);
+  assert.ok(near((locked.w * 1920) / (locked.h * 1080), 1, 1e-6), 'keeps 1:1 in pixels');
+  assert.ok(near(locked.x, sq.x) && near(locked.y, 0), 'anchored at the opposite corner');
+  const nw = dragCrop(sq, 'nw', 0.1, 0, m, 1);
+  assert.ok(near(nw.x + nw.w, sq.x + sq.w) && near(nw.y + nw.h, 1), 'nw keeps the bottom-right corner');
+});

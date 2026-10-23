@@ -14,10 +14,10 @@ export const initialState = {
   dirty: false,
   time: 0,
   playing: false,
-  selectedClipId: null, // a main clip or a track item
+  selectedClipId: null, // the clip or item the inspector shows (the last one picked)
+  selectedIds: [], // every picked clip or item (Ctrl/Shift+click adds), for crop and delete
   selectedCues: [], // caption cue keys (Ctrl/Shift+click adds)
   captionScopeAll: true, // caption style edits apply to every caption, else only to selectedCues
-  cropId: null, // element whose crop box is open in the preview
   jobs: {},
   loadedAt: 0, // when a project was last opened (the timeline fits itself to it)
 };
@@ -80,14 +80,19 @@ export function reducer(state, action) {
       return { ...state, time: Math.max(0, action.time) };
     case 'play':
       return { ...state, playing: action.playing };
-    case 'select':
-      return { ...state, selectedClipId: action.clipId, selectedCues: action.clipId ? [] : state.selectedCues, cropId: action.clipId === state.cropId ? state.cropId : null };
+    case 'select': {
+      // { clipId, add }: add toggles clipId in the selection; without it, clipId becomes the only one.
+      let ids = action.clipId ? [action.clipId] : [];
+      if (action.add && action.clipId) {
+        ids = state.selectedIds.includes(action.clipId) ? state.selectedIds.filter((x) => x !== action.clipId) : [...state.selectedIds, action.clipId];
+      }
+      const primary = ids.includes(action.clipId) ? action.clipId : ids.at(-1) ?? null;
+      return { ...state, selectedClipId: primary, selectedIds: ids, selectedCues: ids.length ? [] : state.selectedCues };
+    }
     case 'selectCues':
-      return { ...state, selectedCues: action.keys, selectedClipId: action.keys.length ? null : state.selectedClipId, cropId: null };
+      return { ...state, selectedCues: action.keys, ...(action.keys.length ? { selectedClipId: null, selectedIds: [] } : {}) };
     case 'captionScope':
       return { ...state, captionScopeAll: action.all };
-    case 'crop':
-      return { ...state, cropId: action.id, selectedClipId: action.id ?? state.selectedClipId };
     case 'job': {
       // A job that finishes at once (a cached result) can report before its start is recorded: keep the end state.
       const prev = state.jobs[action.job.id] ?? {};
