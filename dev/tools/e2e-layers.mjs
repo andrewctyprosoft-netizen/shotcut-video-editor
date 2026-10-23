@@ -385,6 +385,12 @@ async function run({ evaluate, waitFor, drag, click, clickAt, rect, shot, send }
   const logoEnd = item(s, 'logo1').start + item(s, 'logo1').out - item(s, 'logo1').in;
   check('stretch: an image drags past one hour', logoEnd > 4000, `${(logoEnd / 60).toFixed(1)} min`);
 
+  // 18b. Zoomed out to 70 minutes, captions and clips are drawn as wide as their time: padding used to
+  // make every short block at least 14 px (about 50 s here), so captions ran past the end of the audio.
+  const inflated = await evaluate(`[...document.querySelectorAll('.lane .cue, .lane .clip')]
+    .filter((el) => Math.abs(el.getBoundingClientRect().width - parseFloat(el.style.width)) > 0.5).length`);
+  check('zoomed out: captions and clips are drawn at their time width', inflated === 0, `${inflated} drawn wider than set`);
+
   // 19. Playback on the wall clock (no main clip under the playhead) starts where the playhead stands,
   // even after sitting paused; it used to jump ahead by the time spent paused.
   await evaluate('__vce.dispatch({ type: "time", time: 2100 })');

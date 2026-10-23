@@ -20,6 +20,10 @@ const DRAG_PX = 3;
 /** Drag type for media dragged from the Media panel onto a track. */
 export const MEDIA_DRAG = 'application/x-shotcut-media';
 const HEAD = 156; // track header column, px (matches .row .head in styles.css)
+/** Blocks narrower than this drop their padding: CSS never draws a box narrower than its padding and border,
+ * so zoomed out a 2-second caption was drawn 14 px (about 50 s at Fit on a 70-minute timeline). */
+const NARROW = 16;
+const narrow = (w) => (w < NARROW ? ' narrow' : '');
 
 /**
  * Timeline: ruler, caption track, layer tracks (front-most on top), the main track and audio tracks.
@@ -412,7 +416,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
       <div
         key={it.id}
         data-clip={it.id}
-        className={`clip item k-${mediaKind(m)}${selectedIds.includes(it.id) ? ' selected' : ''}${isDragged ? ' dragged' : ''}`}
+        className={`clip item k-${mediaKind(m)}${selectedIds.includes(it.id) ? ' selected' : ''}${isDragged ? ' dragged' : ''}${narrow(style.width)}`}
         style={style}
         onPointerDown={(e) => pickElement(e, it.id, 'move')}
         title={`${m?.name ?? 'missing'} · ${formatClock(span.start)}–${formatClock(span.end)}`}
@@ -516,7 +520,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
                 <div
                   key={c.key}
                   data-cue={c.key}
-                  className={`cue${c.source === 'srt' ? ' srt' : ''}${selectedCues.includes(c.key) ? ' selected' : ''}`}
+                  className={`cue${c.source === 'srt' ? ' srt' : ''}${selectedCues.includes(c.key) ? ' selected' : ''}${narrow((c.end - c.start) * pps)}`}
                   style={{ left: c.start * pps, width: Math.max((c.end - c.start) * pps - 1, 2) }}
                   title={c.text}
                   onPointerDown={(e) => pickCue(e, c, 'cue')}
@@ -552,7 +556,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
                   <div
                     key={it.clip.id}
                     data-clip={it.clip.id}
-                    className={`clip k-${mediaKind(m)}${selectedIds.includes(it.clip.id) ? ' selected' : ''}${m?.hasVideo ? '' : ' audio'}${mainMove && isDragged ? ' ghost' : ''}`}
+                    className={`clip k-${mediaKind(m)}${selectedIds.includes(it.clip.id) ? ' selected' : ''}${m?.hasVideo ? '' : ' audio'}${mainMove && isDragged ? ' ghost' : ''}${narrow(style.width)}`}
                     style={style}
                     onPointerDown={(e) => pickElement(e, it.clip.id, 'move')}
                     title={`${m?.name ?? 'missing'} · ${formatClock(it.clip.in)}–${formatClock(it.clip.out)}${it.clip.speed !== 1 ? ` · ${it.clip.speed}×` : ''}`}
