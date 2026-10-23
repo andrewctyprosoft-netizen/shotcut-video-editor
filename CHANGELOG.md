@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-- Timeline zoom: Ctrl + mouse wheel or touchpad pinch zooms at the pointer, − / + buttons and keys (1.5× steps), Fit (0) shows the whole timeline; range 1–400 px/s on a log slider; one screen of room after the end.
+- Timeline zoom: Ctrl + mouse wheel or touchpad pinch zooms at the pointer, − / + buttons and keys (1.5× steps), Fit (0) shows the whole timeline; range 0.02–400 px/s on a log slider (a 70-minute recording fits a laptop screen; it stopped at about 16 minutes); one screen of room after the end.
+- Importing media or opening a project fits the timeline to the window.
+- Ruler labels are drawn only around the visible part, so a zoomed-in long timeline stays light.
+- Fix: a preview drag that stalled for over a second became several undo steps.
 - Fix: a zoomed-in timeline widened the window instead of scrolling (app grid column could grow with its content).
 - The time ruler stays visible when the tracks scroll.
 

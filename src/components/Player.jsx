@@ -144,7 +144,7 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
     const rect = stageRef.current.getBoundingClientRect();
     const p0 = placement(m, mode === 'move' || mode === 'scale' ? found.el.crop : null, elementState(found.el, local, span.duration), frame,
       found.kind === 'clip' ? project.fit : 'fit');
-    const key = `stage:${id}:${++dragSeq.current}`;
+    const key = `drag:stage:${id}:${++dragSeq.current}`;
     const cx = rect.left + ((p0?.box.left ?? 0) + (p0?.box.width ?? 0) / 2) * (rect.width / frame[0]);
     const cy = rect.top + ((p0?.box.top ?? 0) + (p0?.box.height ?? 0) / 2) * (rect.height / frame[1]);
     const d0 = Math.hypot(e.clientX - cx, e.clientY - cy) || 1;

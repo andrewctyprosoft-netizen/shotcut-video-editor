@@ -19,6 +19,7 @@ export const initialState = {
   captionScopeAll: true, // caption style edits apply to every caption, else only to selectedCues
   cropId: null, // element whose crop box is open in the preview
   jobs: {},
+  loadedAt: 0, // when a project was last opened (the timeline fits itself to it)
 };
 
 /**
@@ -29,7 +30,8 @@ export const initialState = {
 export function reducer(state, action) {
   switch (action.type) {
     case 'edit': {
-      // fn(project) => project. Edits with the same `coalesce` key within a second share one undo step (sliders).
+      // fn(project) => project. Edits with the same `coalesce` key within a second share one undo step (sliders);
+      // keys starting with "drag:" name one pointer gesture and always share one, however slow the drag.
       let next;
       try {
         next = action.fn(state.project);
@@ -39,7 +41,8 @@ export function reducer(state, action) {
       }
       if (next === state.project) return state;
       const now = Date.now();
-      const merge = action.coalesce && state.lastEdit?.key === action.coalesce && now - state.lastEdit.at < COALESCE_MS;
+      const merge = action.coalesce && state.lastEdit?.key === action.coalesce
+        && (action.coalesce.startsWith('drag:') || now - state.lastEdit.at < COALESCE_MS);
       return {
         ...state,
         project: next,
@@ -68,7 +71,9 @@ export function reducer(state, action) {
       return { ...state, project, past: [...state.past, state.project], future, lastEdit: null, dirty: true };
     }
     case 'load':
-      return { ...initialState, jobs: state.jobs, project: normalizeProject(action.project), filePath: action.filePath ?? null, time: action.time ?? 0 };
+      return {
+        ...initialState, jobs: state.jobs, project: normalizeProject(action.project), filePath: action.filePath ?? null, time: action.time ?? 0, loadedAt: Date.now(),
+      };
     case 'saved':
       return { ...state, filePath: action.filePath, dirty: false };
     case 'time':

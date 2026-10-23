@@ -8,9 +8,9 @@ import { formatClock, snapTime } from '../../core/time.js';
 import { timelineWords } from '../../core/transcript.js';
 import { mediaUrl } from '../api.js';
 
-const TICK_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];
+const TICK_STEPS = [0.1, 0.2, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600, 7200, 14400];
 /** Zoom range in pixels per second (log-scale slider) and the step of the buttons and keys. */
-const MIN_PPS = 1;
+const MIN_PPS = 0.02; // 1 px = 50 s: a 10-hour timeline still fits a laptop screen
 const MAX_PPS = 400;
 const ZOOM_STEP = 1.5;
 const sliderOf = (pps) => Math.log(pps / MIN_PPS) / Math.log(MAX_PPS / MIN_PPS);
@@ -30,6 +30,7 @@ const HEAD = 156; // track header column, px (matches .row .head in styles.css)
 export function Timeline({ state, items, cues, total, dispatch, onSeek, commands }) {
   const { project, time, selectedClipId, selectedCues } = state;
   const [pps, setPps] = useState(40); // pixels per second
+  const [scrollX, setScrollX] = useState(0);
   const [drag, setDrag] = useState(null);
   const dragRef = useRef(null);
   const scrollRef = useRef(null);
@@ -215,12 +216,24 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
   };
   const zoomFit = () => {
     const el = scrollRef.current;
-    if (!el) return;
+    if (!el || !(zoomRef.current.total > 0)) return;
     pendingScroll.current = 0;
     setPps(Math.min(MAX_PPS, Math.max(MIN_PPS, (el.clientWidth - HEAD - 30) / Math.max(zoomRef.current.total, 1))));
   };
   const zoomFns = useRef({});
   zoomFns.current = { zoomTo, zoomFit };
+
+  // Fit the whole timeline into the window when media is added (import) or a project is opened.
+  const mediaCount = Object.keys(project.media).length;
+  const seenMedia = useRef(mediaCount);
+  useEffect(() => {
+    if (mediaCount > seenMedia.current) zoomFns.current.zoomFit();
+    seenMedia.current = mediaCount;
+  }, [mediaCount]);
+  useEffect(() => {
+    seenMedia.current = Object.keys(project.media).length;
+    zoomFns.current.zoomFit();
+  }, [state.loadedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useLayoutEffect(() => {
     if (pendingScroll.current === null || !scrollRef.current) return;
@@ -262,9 +275,12 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
     if (x < el.scrollLeft || x > el.scrollLeft + view - 40) el.scrollLeft = Math.max(0, x - view * 0.3);
   }, [time]);
 
-  const step = TICK_STEPS.find((s) => s * pps >= 70) ?? 3600;
+  // Ruler ticks only around the visible part: a zoomed-in hour would otherwise be tens of thousands of labels.
+  const step = TICK_STEPS.find((s) => s * pps >= 70) ?? 14400;
   const ticks = [];
-  for (let i = 0; i * step <= width / pps; i++) ticks.push(Math.round(i * step * 1000) / 1000);
+  const firstTick = Math.max(0, Math.floor((scrollX - viewWidth) / pps / step));
+  const lastTick = Math.min(Math.floor(width / pps / step), Math.ceil((scrollX + 2 * viewWidth) / pps / step));
+  for (let i = firstTick; i <= lastTick; i++) ticks.push(Math.round(i * step * 1000) / 1000);
 
   const tracks = shownProject.tracks ?? [];
   const layers = tracks.filter((t) => t.kind === 'layer').reverse();
@@ -365,7 +381,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
           <button onClick={zoomFit} title="Show the whole timeline (0)">Fit</button>
         </div>
       </div>
-      <div className="tl-scroll" ref={scrollRef}>
+      <div className="tl-scroll" ref={scrollRef} onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)}>
         <div className={`tl-inner${drag?.moved ? ' dragging' : ''}`} ref={innerRef} style={{ width: width + HEAD }}>
           <div className="row ruler-row">
             <div className="head" />

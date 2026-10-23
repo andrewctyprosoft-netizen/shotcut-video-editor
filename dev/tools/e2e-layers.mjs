@@ -264,4 +264,24 @@ async function run({ evaluate, waitFor, drag, click, clickAt, rect, shot, send }
   check('zoom: Fit shows the whole timeline', z5.scroll === 0 && z5.total * z5.pps <= z5.view && z5.total * z5.pps > z5.view * 0.8,
     `${z5.total.toFixed(1)} s × ${z5.pps.toFixed(1)} px/s in ${z5.view} px`);
   await shot('e2e-l7-zoom-fit');
+
+  // 16. A 70-minute audio file: importing it fits the whole timeline into the window; you can zoom out
+  // further and back in; the ruler stays a handful of labels.
+  await evaluate(`(() => { const { id, words, ...info } = __vce.state.project.media.long; __vce.commands.addImports([{ ...info, needsProxy: false }]); })()`);
+  await sleep(600);
+  const zl = await zoomState();
+  const longItem = await rect('.lane.audio .clip:last-child');
+  check('long media: importing 70 minutes fits it to the window', zl.total > 4200 && zl.total * zl.pps <= zl.view && zl.total * zl.pps > zl.view * 0.9 && zl.scroll === 0,
+    `${(zl.total / 60).toFixed(1)} min × ${zl.pps.toFixed(3)} px/s in ${zl.view} px; item ${Math.round(longItem.width)} px`);
+  const tickCount = await evaluate("document.querySelectorAll('.ruler .tick').length");
+  check('long media: the ruler shows a few labels', tickCount > 3 && tickCount < 60, `${tickCount} labels`);
+  await click('−');
+  const zOut = await zoomState();
+  check('long media: can zoom out beyond the fit', zOut.pps < zl.pps * 0.7, `${zl.pps.toFixed(3)} -> ${zOut.pps.toFixed(3)} px/s`);
+  for (let i = 0; i < 12; i++) await click('+');
+  const zIn = await zoomState();
+  const zoomTicks = await evaluate("document.querySelectorAll('.ruler .tick').length");
+  check('long media: zoomed in, only the visible ruler labels exist', zIn.pps > 20 && zoomTicks < 120, `${zIn.pps.toFixed(1)} px/s, ${zoomTicks} labels`);
+  await click('Fit');
+  await shot('e2e-l8-long-fit');
 }

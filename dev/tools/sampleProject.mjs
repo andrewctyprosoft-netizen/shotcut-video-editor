@@ -27,7 +27,7 @@ export async function writeSampleProject(name = 'sample') {
 /**
  * Write dev/out/<name>.shotcut with layers on top of the sample project and return its path.
  * Layer 1: logo.png 0.5–6.5 s (top right). Layer 2: spin.gif 1–5 s (top left), green.png 6–9 s (centre).
- * Audio: music.wav from 0 s at -12 dB. Subtitles: one imported line at 10.6–11.8 s.
+ * Audio: music.wav from 0 s at -12 dB. Subtitles: one imported line at 10.6–11.8 s. long.ogg (70 min) is in Media only.
  * @param {string} [name]
  * @returns {Promise<string>}
  */
@@ -88,6 +88,7 @@ function makeLayerSamples() {
     green: join(samples, 'green.png'),
     music: join(samples, 'music.wav'),
     srt: join(samples, 'lines.srt'),
+    long: join(samples, 'long.ogg'), // 70 minutes of silence, for zooming a long timeline
   };
   if (!existsSync(files.logo)) {
     ff(['-f', 'lavfi', '-i', 'color=c=black@0:s=300x300,format=rgba', '-frames:v', '1',
@@ -100,6 +101,7 @@ function makeLayerSamples() {
     ff(['-f', 'lavfi', '-i', 'color=c=0x00ff00:s=640x360,drawbox=x=220:y=80:w=200:h=200:color=0xe02020:t=fill', '-frames:v', '1', files.green]);
   }
   if (!existsSync(files.music)) ff(['-f', 'lavfi', '-i', 'sine=f=220:d=12', files.music]);
+  if (!existsSync(files.long)) ff(['-f', 'lavfi', '-i', 'anullsrc=r=8000:cl=mono', '-t', '4200', '-c:a', 'libopus', '-b:a', '6k', files.long]);
   if (!existsSync(files.srt)) writeFileSync(files.srt, '1\n00:00:10,600 --> 00:00:11,800\nImported subtitle line\n', 'utf8');
   return files;
 }

@@ -80,7 +80,7 @@ export function App() {
 
   // Read-only hook for debugging and the end-to-end checks (dev/tools/e2e.mjs).
   useEffect(() => {
-    window.__vce = { get state() { return stateRef.current; }, get cues() { return cuesRef.current; }, dispatch };
+    window.__vce = { get state() { return stateRef.current; }, get cues() { return cuesRef.current; }, get commands() { return commandsRef.current; }, dispatch };
   }, []);
 
   useEffect(() => api.onProjectLoaded(({ project: p, filePath, time: t }) => dispatch({ type: 'load', project: p, filePath, time: t })), []);
@@ -118,6 +118,10 @@ export function App() {
         alert(err.message);
         return;
       }
+      commandsRef.current.addImports(infos);
+    },
+    /** Put picked files (probe results from the main process) where they belong; see importMedia. */
+    addImports(infos) {
       const failed = infos.filter((i) => i.error);
       if (failed.length) alert(failed.map((f) => `${f.path}\n${f.error}`).join('\n\n'));
       for (const info of infos.filter((i) => !i.error)) {
@@ -278,6 +282,8 @@ export function App() {
       dispatch({ type: 'select', clipId: null });
     },
   }), [edit, startJob]);
+  const commandsRef = useRef(commands);
+  commandsRef.current = commands;
 
   // ----- keyboard -----
   useEffect(() => {

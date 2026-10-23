@@ -28,7 +28,7 @@ export function CaptionOverlay({ cues, time, selectedKeys, scopeAll, dispatch, e
     const s = cue.style;
     const start = { x: s.x ?? 0.5, width: s.width ?? 0.88, position: s.position, size: s.size };
     const target = scopeAll ? null : keys;
-    const key = `caption:${++seq.current}`;
+    const key = `drag:caption:${++seq.current}`;
     const move = (ev) => {
       const dx = (ev.clientX - e.clientX) / stage.width;
       const dy = (ev.clientY - e.clientY) / stage.height;
