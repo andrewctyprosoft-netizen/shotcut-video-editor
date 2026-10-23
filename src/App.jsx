@@ -395,5 +395,5 @@ export function App() {
 }
 
 function baseName(filePath) {
-  return filePath ? filePath.split(/[\\/]/).pop().replace(/\.shotcut$/, '') : null;
+  return filePath ? filePath.split(/[\\/]/).pop().replace(/\.shotcut$/i, '') : null;
 }

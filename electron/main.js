@@ -28,6 +28,7 @@ const CAPTION_FILTERS = {
   txt: { name: 'Text', extensions: ['txt'] },
 };
 const PROJECT_FILTER = { name: 'ShotCut project', extensions: ['shotcut'] };
+const isProjectFile = (p) => /\.shotcut$/i.test(p);
 
 registerMediaScheme();
 
@@ -68,7 +69,7 @@ function createWindow() {
 
 /** `ShotCut.exe project.shotcut` (or `electron . project.shotcut`) opens that project. */
 function openFromCommandLine() {
-  const file = process.argv.slice(1).find((a) => a.toLowerCase().endsWith('.shotcut'));
+  const file = process.argv.slice(1).find(isProjectFile);
   if (!file) return;
   win.webContents.once('did-finish-load', () => {
     try {
