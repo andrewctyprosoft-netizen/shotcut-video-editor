@@ -74,7 +74,7 @@ function ClipTab({ state, items, edit, dispatch, commands, onSeek }) {
   return (
     <>
       <h3 title={m?.path}>{m?.name}</h3>
-      {selectedIds.length > 1 && <p className="hint">{selectedIds.length} selected (Ctrl+click to change) · showing the last one picked. Crop and Delete apply to all.</p>}
+      {selectedIds.length > 1 && <p className="hint">{selectedIds.length} selected (Ctrl+click or drag a box to change) · showing the last one picked. Crop and Delete apply to all.</p>}
       <p className="hint">
         {found.kind === 'clip' ? 'Main track' : `${found.track.kind === 'layer' ? 'Layer' : 'Audio'} track`} · {kind}
         {' · '}{formatClock(span.start)}–{formatClock(span.end)}

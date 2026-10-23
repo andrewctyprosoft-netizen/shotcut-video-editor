@@ -16,7 +16,7 @@ export const initialState = {
   playing: false,
   selectedClipId: null, // the clip or item the inspector shows (the last one picked)
   selectedIds: [], // every picked clip or item (Ctrl/Shift+click adds), for crop and delete
-  selectedCues: [], // caption cue keys (Ctrl/Shift+click adds)
+  selectedCues: [], // caption cue keys (Ctrl/Shift+click adds; a box select can pick them with clips)
   captionScopeAll: true, // caption style edits apply to every caption, else only to selectedCues
   jobs: {},
   loadedAt: 0, // when a project was last opened (the timeline fits itself to it)
@@ -91,6 +91,14 @@ export function reducer(state, action) {
     }
     case 'selectCues':
       return { ...state, selectedCues: action.keys, ...(action.keys.length ? { selectedClipId: null, selectedIds: [] } : {}) };
+    case 'selectBox': {
+      // { ids, keys, add }: a box drawn on the timeline picks clips, items and captions together;
+      // add (Ctrl/Shift held) keeps what was already picked.
+      const ids = action.add ? [...new Set([...state.selectedIds, ...action.ids])] : action.ids;
+      const keys = action.add ? [...new Set([...state.selectedCues, ...action.keys])] : action.keys;
+      const primary = ids.includes(state.selectedClipId) ? state.selectedClipId : ids.at(-1) ?? null;
+      return { ...state, selectedClipId: primary, selectedIds: ids, selectedCues: keys };
+    }
     case 'captionScope':
       return { ...state, captionScopeAll: action.all };
     case 'job': {

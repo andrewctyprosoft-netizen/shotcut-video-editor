@@ -240,17 +240,15 @@ export function App() {
       edit((x) => splitAt(x, t));
     },
     deleteSelected() {
+      // Clips, items and imported subtitles go in one undo step (a box select can pick all of them).
       const { selectedIds: ids, selectedCues: keys } = stateRef.current;
-      if (ids.length) {
-        edit((p) => ids.reduce((q, id) => removeElement(q, id), p));
-        dispatch({ type: 'select', clipId: null });
-        return;
-      }
       const subs = cuesRef.current.filter((c) => keys.includes(c.key) && c.source === 'srt').map((c) => c.srtId);
-      if (subs.length) {
-        edit((p) => removeSubtitles(p, subs));
-        dispatch({ type: 'selectCues', keys: [] });
-      }
+      if (!ids.length && !subs.length) return;
+      edit((p) => {
+        const q = ids.reduce((x, id) => removeElement(x, id), p);
+        return subs.length ? removeSubtitles(q, subs) : q;
+      });
+      dispatch({ type: 'selectBox', ids: [], keys: [] });
     },
     togglePlay() {
       const s = stateRef.current;

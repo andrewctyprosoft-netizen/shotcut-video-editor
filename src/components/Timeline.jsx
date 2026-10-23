@@ -27,7 +27,8 @@ const HEAD = 156; // track header column, px (matches .row .head in styles.css)
  * Layer and audio items: drag to move in time or to another track (above the top layer = a new layer),
  * drag an edge to trim or lengthen (images and GIFs have no fixed length). Captions: click to select
  * (Ctrl/Shift+click adds), drag an edge to change when it shows; imported subtitles can be dragged whole.
- * A drag previews live and commits as one undo step.
+ * A drag previews live and commits as one undo step. Dragging on empty space (or across auto captions)
+ * draws a box that selects everything it touches, on every track.
  */
 export function Timeline({ state, items, cues, total, dispatch, onSeek, commands }) {
   const { project, time, selectedClipId, selectedIds, selectedCues } = state;
@@ -35,6 +36,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
   const [pps, setPps] = useState(40); // pixels per second
   const [scrollX, setScrollX] = useState(0);
   const [drag, setDrag] = useState(null);
+  const [marquee, setMarquee] = useState(null); // box select rectangle in .tl-inner pixels
   const dragRef = useRef(null);
   const scrollRef = useRef(null);
   const innerRef = useRef(null);
@@ -169,8 +171,9 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
     }
     if (!selectedCues.includes(cue.key) || kind !== 'cue') dispatch({ type: 'selectCues', keys: [cue.key] });
     if (kind === 'cue' && cue.source !== 'srt') {
-      e.stopPropagation();
+      // Auto captions do not move, so dragging across them box-selects (they often leave no empty space).
       onSeek(cue.start);
+      beginMarquee(e, () => {});
       return;
     }
     if (kind === 'cue') onSeek(cue.start);
@@ -201,11 +204,76 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
     window.addEventListener('pointermove', move);
     window.addEventListener('pointerup', up);
   };
+  const clearAndSeek = (clientX) => {
+    dispatch({ type: 'selectBox', ids: [], keys: [] });
+    onSeek(Math.max(0, timeAt(clientX)));
+  };
+
+  /**
+   * Box select: press and drag draws a rectangle; every clip, layer item and caption it touches, on any
+   * track, is selected live. Ctrl/Shift keeps the current selection. Near the edges the view scrolls.
+   * A press that does not move calls `onClick` instead (by default: clear the selection and seek there).
+   */
+  const beginMarquee = (e, onClick = () => clearAndSeek(e.clientX)) => {
+    if (e.button !== 0) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const inner = innerRef.current;
+    const scroller = scrollRef.current;
+    const add = e.ctrlKey || e.metaKey || e.shiftKey;
+    const at = (cx, cy) => {
+      const r = inner.getBoundingClientRect();
+      return { x: Math.max(HEAD, cx - r.left), y: Math.max(0, cy - r.top) };
+    };
+    const a = at(e.clientX, e.clientY);
+    let pointer = { x: e.clientX, y: e.clientY };
+    let moved = false;
+    let raf = 0;
+    const update = () => {
+      const b = at(pointer.x, pointer.y);
+      const box = { left: Math.min(a.x, b.x), top: Math.min(a.y, b.y), right: Math.max(a.x, b.x), bottom: Math.max(a.y, b.y) };
+      setMarquee(box);
+      const r = inner.getBoundingClientRect();
+      const hit = (el) => {
+        const c = el.getBoundingClientRect();
+        return c.right - r.left > box.left && c.left - r.left < box.right && c.bottom - r.top > box.top && c.top - r.top < box.bottom;
+      };
+      const ids = [...inner.querySelectorAll('[data-clip]')].filter(hit).map((el) => el.dataset.clip);
+      const keys = [...inner.querySelectorAll('[data-cue]')].filter(hit).map((el) => el.dataset.cue);
+      dispatch({ type: 'selectBox', ids, keys, add });
+    };
+    // Auto-scroll while the pointer is past an edge of the visible timeline, faster the further out it is.
+    const tick = () => {
+      const v = scroller.getBoundingClientRect();
+      const over = (p, lo, hi) => (p < lo ? p - lo : p > hi ? p - hi : 0);
+      const dx = over(pointer.x, v.left + HEAD + 20, v.right - 20);
+      const dy = over(pointer.y, v.top + 30, v.bottom - 10);
+      if (dx || dy) {
+        scroller.scrollLeft += Math.sign(dx) * Math.min(40, Math.abs(dx) / 2 + 2);
+        scroller.scrollTop += Math.sign(dy) * Math.min(30, Math.abs(dy) / 2 + 2);
+        update();
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    const move = (ev) => {
+      pointer = { x: ev.clientX, y: ev.clientY };
+      if (!moved && Math.hypot(ev.clientX - e.clientX, ev.clientY - e.clientY) <= DRAG_PX) return;
+      if (!moved) raf = requestAnimationFrame(tick);
+      moved = true;
+      update();
+    };
+    const up = () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      cancelAnimationFrame(raf);
+      setMarquee(null);
+      if (!moved) onClick();
+    };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+  };
   const laneDown = (e) => {
-    if (e.target !== e.currentTarget) return;
-    dispatch({ type: 'select', clipId: null });
-    dispatch({ type: 'selectCues', keys: [] });
-    onScrub(e);
+    if (e.target === e.currentTarget) beginMarquee(e);
   };
 
   // ----- zoom: keep the time under the pointer (or the playhead, or the view centre) in place -----
@@ -391,12 +459,12 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
     <section className="timeline">
       <div className="tl-toolbar">
         <button onClick={commands.splitAtPlayhead} disabled={!items.length && !tracks.some((t) => t.items.length)} title="Split at playhead (S)">Split</button>
-        <button onClick={commands.openCrop} disabled={!(selectedIds.some((id) => { const f = findElement(project, id); return f && isVisual(project.media[f.el.mediaId]) && f.track?.kind !== 'audio'; }))} title="Crop the selected layers (Ctrl+click on the timeline to pick several)">Crop</button>
+        <button onClick={commands.openCrop} disabled={!(selectedIds.some((id) => { const f = findElement(project, id); return f && isVisual(project.media[f.el.mediaId]) && f.track?.kind !== 'audio'; }))} title="Crop the selected layers (Ctrl+click or drag a box on the timeline to pick several)">Crop</button>
         <button onClick={commands.deleteSelected} disabled={!selectedIds.length && !selectedCues.length} title="Delete selected (Del)">Delete</button>
         <button onClick={() => dispatch({ type: 'edit', fn: (p) => addTrack(p, 'layer') })} title="Add an empty layer in front">+ Layer</button>
         <button onClick={() => dispatch({ type: 'edit', fn: (p) => addTrack(p, 'audio') })} title="Add an empty audio track">+ Audio track</button>
         <span className="clock">{formatClock(time)}</span>
-        <span className="hint">Drag edges to trim · drag clips to move or change layer · Ctrl+wheel to zoom</span>
+        <span className="hint">Drag edges to trim · drag clips to move or change layer · drag empty space to box-select · Ctrl+wheel to zoom</span>
         <span className="grow" />
         <div className="zoom" title="Zoom: Ctrl + mouse wheel or pinch on the timeline · + / - keys · 0 fits">
           <button onClick={() => zoomTo(pps / ZOOM_STEP)} title="Zoom out (-)">−</button>
@@ -414,7 +482,12 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
         </div>
       </div>
       <div className="tl-scroll" ref={scrollRef} onScroll={(e) => setScrollX(e.currentTarget.scrollLeft)}>
-        <div className={`tl-inner${drag?.moved ? ' dragging' : ''}`} ref={innerRef} style={{ width: width + HEAD }}>
+        <div
+          className={`tl-inner${drag?.moved ? ' dragging' : ''}`}
+          ref={innerRef}
+          style={{ width: width + HEAD }}
+          onPointerDown={(e) => e.target === e.currentTarget && e.clientX - e.currentTarget.getBoundingClientRect().left > HEAD && beginMarquee(e)}
+        >
           <div className="row ruler-row">
             <div className="head" />
             <div className="ruler" onPointerDown={onScrub}>
@@ -497,6 +570,9 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
           </div>
           {audios.map(trackRow)}
           {newLayerHint && <div className="new-layer-hint">Drop for a new layer</div>}
+          {marquee && (
+            <div className="marquee" style={{ left: marquee.left, top: marquee.top, width: marquee.right - marquee.left, height: marquee.bottom - marquee.top }} />
+          )}
           <div className="playhead" style={{ left: HEAD + time * pps }} />
         </div>
       </div>

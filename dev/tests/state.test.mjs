@@ -36,3 +36,15 @@ test('selection: Ctrl/Shift+click adds and removes; a plain click picks one; cap
   s = reducer(s, { type: 'selectCues', keys: ['w:x:0'] });
   assert.deepEqual([s.selectedIds, s.selectedClipId], [[], null]);
 });
+
+test('box select: picks clips and captions together; Ctrl/Shift adds; the inspected one stays if still picked', () => {
+  let s = reducer(initialState, { type: 'select', clipId: 'a' });
+  s = reducer(s, { type: 'selectBox', ids: ['b', 'a'], keys: ['w:x:0', 's:1'] });
+  assert.deepEqual([s.selectedIds, s.selectedCues, s.selectedClipId], [['b', 'a'], ['w:x:0', 's:1'], 'a']);
+  s = reducer(s, { type: 'selectBox', ids: ['c'], keys: [] });
+  assert.deepEqual([s.selectedIds, s.selectedCues, s.selectedClipId], [['c'], [], 'c']);
+  s = reducer(s, { type: 'selectBox', ids: ['c', 'd'], keys: ['s:2'], add: true });
+  assert.deepEqual([s.selectedIds, s.selectedCues, s.selectedClipId], [['c', 'd'], ['s:2'], 'c']);
+  s = reducer(s, { type: 'selectBox', ids: [], keys: [] });
+  assert.deepEqual([s.selectedIds, s.selectedCues, s.selectedClipId], [[], [], null]);
+});

@@ -299,6 +299,7 @@ button.icon.danger:hover { color: var(--danger); }
 .cue .handle.right { right: 0; }
 .cue.selected .handle { background: #ffffff55; }
 .playhead { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--accent); pointer-events: none; z-index: 5; }
+.marquee { position: absolute; z-index: 4; pointer-events: none; background: #20d3c21f; border: 1px solid var(--accent); }
 .playhead::before { content: ""; position: absolute; top: 0; left: -5px; border: 6px solid transparent; border-top-color: var(--accent); }
 
 /* jobs */

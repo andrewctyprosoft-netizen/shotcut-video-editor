@@ -280,6 +280,35 @@ async function run({ evaluate, waitFor, drag, click, clickAt, rect, shot, send }
     `${z5.total.toFixed(1)} s × ${z5.pps.toFixed(1)} px/s in ${z5.view} px`);
   await shot('e2e-l7-zoom-fit');
 
+  // 15b. Box select: drag from the empty end of the top layer down-left into the main track picks every
+  // layer item and main clip it touches; Ctrl + a box over the caption track adds the captions; a plain
+  // click on empty space clears the selection and seeks there.
+  await evaluate("document.querySelector('.tl-scroll').scrollTop = 0"); // earlier steps leave the caption lane under the ruler
+  const lanes = await evaluate(`(() => {
+    const r = (el) => { const b = el.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, y: b.top + b.height / 2 }; };
+    const layers = [...document.querySelectorAll('.lane.layer')];
+    return {
+      top: r(layers[0]), main: r(document.querySelector('.lane.video-track')), caps: r(document.querySelector('.lane.caption-track')),
+      viewRight: (() => { const el = document.querySelector('.tl-scroll'); return el.getBoundingClientRect().left + el.clientWidth; })(), // without the scrollbar
+      expect: [...document.querySelectorAll('.lane.layer [data-clip], .lane.video-track [data-clip]')].map((el) => el.dataset.clip).sort(),
+      cues: document.querySelectorAll('.lane.caption-track [data-cue]').length,
+    };
+  })()`);
+  const endX = Math.min(lanes.viewRight, lanes.top.right) - 12;
+  await drag(endX, lanes.top.y, lanes.top.left + 4, lanes.main.y, 16);
+  s = await S();
+  check('box select: a box across layers and the main track picks everything it touches', JSON.stringify([...s.ids].sort()) === JSON.stringify(lanes.expect) && !s.cues.length,
+    `${s.ids.length} picked of ${lanes.expect.length}`);
+  check('box select: the box disappears on release', !(await evaluate("document.querySelector('.marquee')")));
+  await drag(endX, lanes.caps.y, lanes.caps.left + 4, lanes.caps.y + 2, 12, 2);
+  s = await S();
+  check('box select: Ctrl + a box over the captions adds them to the picked clips', s.ids.length === lanes.expect.length && s.cues.length === lanes.cues && lanes.cues > 0,
+    `${s.ids.length} clips + ${s.cues.length}/${lanes.cues} captions`);
+  await shot('e2e-l7b-box-select');
+  await clickAt(endX, lanes.top.y);
+  s = await S();
+  check('box select: a click on empty space clears the selection and seeks', !s.ids.length && !s.cues.length && s.time > 0, `t=${s.time.toFixed(2)}`);
+
   // 16. Importing more files into a project that has a timeline: they wait in Media (the Import button stays),
   // a file dropped from Explorer is imported, and dragging a file onto a track places it there.
   check('import: the Media panel keeps its Import button', (await evaluate("document.querySelector('.media-head button')?.textContent")) === '+ Import');
