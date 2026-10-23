@@ -305,6 +305,19 @@ async function run({ evaluate, waitFor, drag, click, clickAt, rect, shot, send }
   check('box select: Ctrl + a box over the captions adds them to the picked clips', s.ids.length === lanes.expect.length && s.cues.length === lanes.cues && lanes.cues > 0,
     `${s.ids.length} clips + ${s.cues.length}/${lanes.cues} captions`);
   await shot('e2e-l7b-box-select');
+  // Ctrl+click adds an audio clip and takes an image out (on its trim edge) without dropping the captions;
+  // Ctrl+click on a caption keeps the clips.
+  const music = await rect('[data-clip="music1"]');
+  await clickAt(music.x, Math.min(music.y, lanes.main.bottom + 12), 2);
+  const greenEdge = await rect('[data-clip="green1"] .handle.right');
+  await clickAt(greenEdge.x, greenEdge.y, 2);
+  s = await S();
+  check('Ctrl+click: adds audio and removes an image (even on its edge), captions stay', s.ids.includes('music1') && !s.ids.includes('green1') && s.ids.length === lanes.expect.length && s.cues.length === lanes.cues,
+    `${s.ids.join(',')} + ${s.cues.length} captions`);
+  const cue0 = await rect('.lane.caption-track [data-cue]');
+  await clickAt(cue0.x, cue0.y, 2);
+  s = await S();
+  check('Ctrl+click: taking a caption out keeps the clips', s.cues.length === lanes.cues - 1 && s.ids.length === lanes.expect.length, `${s.ids.length} clips + ${s.cues.length} captions`);
   await clickAt(endX, lanes.top.y);
   s = await S();
   check('box select: a click on empty space clears the selection and seeks', !s.ids.length && !s.cues.length && s.time > 0, `t=${s.time.toFixed(2)}`);

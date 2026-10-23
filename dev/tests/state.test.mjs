@@ -37,6 +37,18 @@ test('selection: Ctrl/Shift+click adds and removes; a plain click picks one; cap
   assert.deepEqual([s.selectedIds, s.selectedClipId], [[], null]);
 });
 
+test('Ctrl/Shift+click keeps the other kind: adding a clip keeps captions, adding a caption keeps clips', () => {
+  let s = reducer(initialState, { type: 'selectBox', ids: ['a'], keys: ['w:x:0'] });
+  s = reducer(s, { type: 'select', clipId: 'img', add: true });
+  assert.deepEqual([s.selectedIds, s.selectedCues], [['a', 'img'], ['w:x:0']]);
+  s = reducer(s, { type: 'selectCues', keys: ['w:x:0', 's:1'], add: true });
+  assert.deepEqual([s.selectedIds, s.selectedCues, s.selectedClipId], [['a', 'img'], ['w:x:0', 's:1'], 'img']);
+  s = reducer(s, { type: 'select', clipId: 'a', add: true });
+  assert.deepEqual([s.selectedIds, s.selectedCues, s.selectedClipId], [['img'], ['w:x:0', 's:1'], 'img']);
+  s = reducer(s, { type: 'select', clipId: 'b' });
+  assert.deepEqual([s.selectedIds, s.selectedCues], [['b'], []]);
+});
+
 test('box select: picks clips and captions together; Ctrl/Shift adds; the inspected one stays if still picked', () => {
   let s = reducer(initialState, { type: 'select', clipId: 'a' });
   s = reducer(s, { type: 'selectBox', ids: ['b', 'a'], keys: ['w:x:0', 's:1'] });

@@ -81,16 +81,19 @@ export function reducer(state, action) {
     case 'play':
       return { ...state, playing: action.playing };
     case 'select': {
-      // { clipId, add }: add toggles clipId in the selection; without it, clipId becomes the only one.
+      // { clipId, add }: add toggles clipId in the selection and keeps the picked captions;
+      // without it, clipId becomes the only one.
+      const add = action.add && action.clipId;
       let ids = action.clipId ? [action.clipId] : [];
-      if (action.add && action.clipId) {
+      if (add) {
         ids = state.selectedIds.includes(action.clipId) ? state.selectedIds.filter((x) => x !== action.clipId) : [...state.selectedIds, action.clipId];
       }
       const primary = ids.includes(action.clipId) ? action.clipId : ids.at(-1) ?? null;
-      return { ...state, selectedClipId: primary, selectedIds: ids, selectedCues: ids.length ? [] : state.selectedCues };
+      return { ...state, selectedClipId: primary, selectedIds: ids, selectedCues: ids.length && !add ? [] : state.selectedCues };
     }
     case 'selectCues':
-      return { ...state, selectedCues: action.keys, ...(action.keys.length ? { selectedClipId: null, selectedIds: [] } : {}) };
+      // { keys, add }: add (Ctrl/Shift+click) keeps the picked clips; without it, picking captions clears them.
+      return { ...state, selectedCues: action.keys, ...(action.keys.length && !action.add ? { selectedClipId: null, selectedIds: [] } : {}) };
     case 'selectBox': {
       // { ids, keys, add }: a box drawn on the timeline picks clips, items and captions together;
       // add (Ctrl/Shift held) keeps what was already picked.

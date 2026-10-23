@@ -22,7 +22,7 @@ export function CaptionOverlay({ cues, time, selectedKeys, scopeAll, dispatch, e
     let keys = selectedKeys;
     if (multi) keys = selectedKeys.includes(cue.key) ? selectedKeys.filter((k) => k !== cue.key) : [...selectedKeys, cue.key];
     else if (!selectedKeys.includes(cue.key)) keys = [cue.key];
-    if (keys !== selectedKeys) dispatch({ type: 'selectCues', keys });
+    if (keys !== selectedKeys) dispatch({ type: 'selectCues', keys, add: multi });
     if (multi) return;
     const stage = e.currentTarget.closest('.stage').getBoundingClientRect();
     const s = cue.style;

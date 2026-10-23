@@ -151,7 +151,9 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
   };
 
   const pickElement = (e, id, kind, edge) => {
-    if (kind === 'move' && (e.ctrlKey || e.metaKey || e.shiftKey)) {
+    // Ctrl/Shift+click anywhere on it, its trim edges too (a short clip zoomed out is mostly edge), adds or removes it.
+    if (e.ctrlKey || e.metaKey || e.shiftKey) {
+      if (e.button !== 0) return;
       e.stopPropagation();
       dispatch({ type: 'select', clipId: id, add: true });
       return;
@@ -166,7 +168,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
     if (multi) {
       e.stopPropagation();
       const keys = selectedCues.includes(cue.key) ? selectedCues.filter((k) => k !== cue.key) : [...selectedCues, cue.key];
-      dispatch({ type: 'selectCues', keys });
+      dispatch({ type: 'selectCues', keys, add: true });
       return;
     }
     if (!selectedCues.includes(cue.key) || kind !== 'cue') dispatch({ type: 'selectCues', keys: [cue.key] });
