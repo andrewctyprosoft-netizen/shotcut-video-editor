@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { layout, removeSourceRanges, updateClip } from '../../core/project.js';
-import { PlaybackEngine } from '../../src/playback.js';
+import {
+  HARD_DRIFT, MAX_WAIT, PlaybackEngine, SEEK_HOLD, followTimeline, mediaWaiting,
+} from '../../src/playback.js';
 import { media, projectWith } from './helpers.mjs';
 
 /** Minimal HTMLVideoElement stand-in: loads on demand, seeks instantly, advances when told. */
@@ -226,4 +228,94 @@ test('stills on the main track and the timeline after it run on the wall clock',
   now += 600;
   engine.tick();
   assert.equal(ended, 1);
+});
+
+test('layer media follows the timeline: small drift changes the rate, large drift seeks once per hold', () => {
+  assert.deepEqual(followTimeline({ drift: 0.01, speed: 1, sinceSeek: 9 }), { seek: false, rate: 1 });
+  // Behind by 0.1 s: play 4% faster; ahead: slower; never beyond 6%.
+  assert.deepEqual(followTimeline({ drift: -0.1, speed: 1, sinceSeek: 9 }), { seek: false, rate: 1.04 });
+  assert.deepEqual(followTimeline({ drift: 0.1, speed: 1, sinceSeek: 9 }), { seek: false, rate: 0.96 });
+  assert.deepEqual(followTimeline({ drift: -0.5, speed: 1, sinceSeek: 9 }), { seek: false, rate: 1.06 });
+  // At 2x the drift in source seconds counts half in timeline seconds; the rate scales with the speed.
+  assert.deepEqual(followTimeline({ drift: -0.2, speed: 2, sinceSeek: 9 }), { seek: false, rate: 2 * 1.04 });
+  // Far off: seek, but not again while the last seek settles (that loop was the stutter) ...
+  assert.equal(followTimeline({ drift: -(HARD_DRIFT + 0.1), speed: 1, sinceSeek: SEEK_HOLD }).seek, true);
+  const held = followTimeline({ drift: -(HARD_DRIFT + 0.1), speed: 1, sinceSeek: SEEK_HOLD / 2 });
+  assert.deepEqual(held, { seek: false, rate: 1.06 });
+  // ... unless the playhead was moved by seconds.
+  assert.equal(followTimeline({ drift: 30, speed: 1, sinceSeek: 0.1 }).seek, true);
+});
+
+test('the wall clock waits while layer audio buffers, but not for ever', () => {
+  const p = projectWith(media('img', 0, { kind: 'image' }));
+  const items = layout(p); // img 0-5
+  let now = 1000;
+  let waiting = true;
+  const times = [];
+  const engine = new PlaybackEngine({
+    videos: [new FakeVideo(), new FakeVideo()],
+    urlFor: (clip) => `media://${clip.mediaId}`,
+    isStill: () => true,
+    isWaiting: () => waiting,
+    now: () => now,
+    onTime: (t) => times.push(t),
+    onEnd: () => {},
+  });
+  engine.sync(items, 1, 60);
+  engine.play();
+  now += 1500; // the audio takes 1.5 s to start
+  engine.tick();
+  assert.equal(times.length, 0, 'held at 1 s while the audio buffers');
+  waiting = false;
+  now += 500;
+  engine.tick();
+  assert.equal(times.at(-1), 1.5, 'then runs from where it held');
+  waiting = true; // a file that never loads
+  now += 100;
+  engine.tick();
+  now += MAX_WAIT * 1000 + 100;
+  engine.tick();
+  assert.ok(times.at(-1) > 1.5, 'gives up waiting after MAX_WAIT');
+});
+
+test('layer media counts as waiting until its time moves, even when it reports ready', () => {
+  const el = { readyState: 4, seeking: false, currentTime: 2100, error: null, ended: false };
+  const live = new Map([[el, 2100]]);
+  assert.equal(mediaWaiting(live), true, 'ready but not moving yet');
+  el.currentTime = 2100.1;
+  assert.equal(mediaWaiting(live), false, 'moving');
+  assert.equal(live.get(el), null, 'remembered as started');
+  el.currentTime = 2100.1; // a later stall with data is drift, not start-up
+  assert.equal(mediaWaiting(live), false);
+  el.readyState = 2;
+  assert.equal(mediaWaiting(live), true, 'buffering');
+  el.error = { code: 4 };
+  assert.equal(mediaWaiting(live), false, 'a broken file never holds the clock');
+});
+
+test('wall clock: play starts where the timeline stands, however long it sat paused', () => {
+  const p = projectWith(media('img', 0, { kind: 'image' }));
+  let now = 1000;
+  const times = [];
+  const engine = new PlaybackEngine({
+    videos: [new FakeVideo(), new FakeVideo()],
+    urlFor: (clip) => `media://${clip.mediaId}`,
+    isStill: () => true,
+    now: () => now,
+    onTime: (t) => times.push(t),
+    onEnd: () => {},
+  });
+  engine.sync(layout(p), 0, 4000); // e.g. a 70-minute audio track under a still
+  engine.seek(2100);
+  now += 1500; // paused for 1.5 s after the seek (this used to jump play ahead by 1.5 s)
+  engine.play();
+  now += 100;
+  engine.tick();
+  assert.equal(times.at(-1), 2100.1);
+  engine.pause();
+  now += 10000; // paused for 10 s
+  engine.play();
+  now += 500;
+  engine.tick();
+  assert.equal(times.at(-1), 2100.6);
 });

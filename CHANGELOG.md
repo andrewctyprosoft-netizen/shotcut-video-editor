@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fix: audio stuttered or repeated when the timeline had no video under the playhead (audio on an audio track, with images): pressing play jumped the timeline ahead by the time it had sat paused (or since the last seek), and the audio was cut to catch up. Play now starts at the playhead.
+- Audio and video layers now follow the timeline by easing their speed (up to 6%, pitch kept) instead of seeking at every 0.25 s of drift; they seek only when more than 0.75 s off, at most once per 1.5 s, and the timeline waits (up to 5 s) for them to start or buffer. Paused audio is no longer pulled back a few hundredths, which replayed them on resume.
 - Images and GIFs can be stretched to any length (the limit was one hour).
 - Fix: Ctrl/Shift+click on a clip, image or audio item dropped the captions picked with a box select, and Ctrl/Shift+click on a caption dropped the picked clips; now both kinds stay. Ctrl/Shift+click on a clip's trim edge (most of a short clip when zoomed out) replaced the selection; it now adds or removes the clip too.
 - Box select: drag on empty timeline space (or across auto captions) to draw a box; every clip, layer item and caption it touches, on any track, is selected live, and the view scrolls at the edges. Ctrl/Shift+drag adds to the selection; a click on empty space still clears it and seeks. Delete removes the selected clips, items and imported subtitle lines in one undo step.

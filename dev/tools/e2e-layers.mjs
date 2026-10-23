@@ -384,4 +384,14 @@ async function run({ evaluate, waitFor, drag, click, clickAt, rect, shot, send }
   s = await S();
   const logoEnd = item(s, 'logo1').start + item(s, 'logo1').out - item(s, 'logo1').in;
   check('stretch: an image drags past one hour', logoEnd > 4000, `${(logoEnd / 60).toFixed(1)} min`);
+
+  // 19. Playback on the wall clock (no main clip under the playhead) starts where the playhead stands,
+  // even after sitting paused; it used to jump ahead by the time spent paused.
+  await evaluate('__vce.dispatch({ type: "time", time: 2100 })');
+  await sleep(1500);
+  await evaluate('__vce.dispatch({ type: "play", playing: true })');
+  await sleep(500);
+  await evaluate('__vce.dispatch({ type: "play", playing: false })');
+  const t19 = (await S()).time;
+  check('playback: play after a pause starts at the playhead, no jump', t19 > 2100.2 && t19 < 2100.9, `t=${t19.toFixed(2)} after 0.5 s`);
 }

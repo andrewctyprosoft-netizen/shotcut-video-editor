@@ -8,7 +8,7 @@ import {
 import { formatClock } from '../../core/time.js';
 import { mediaUrl } from '../api.js';
 import { setGain } from '../audio.js';
-import { PlaybackEngine } from '../playback.js';
+import { PlaybackEngine, followTimeline, mediaWaiting } from '../playback.js';
 import { pictureCss, rectCss, transitionCss } from '../stage.js';
 import { CaptionOverlay } from './CaptionOverlay.jsx';
 
@@ -30,6 +30,7 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
   const stageRef = useRef(null);
   const engine = useRef(null);
   const reported = useRef(-1); // last time the engine reported, so its own updates don't trigger a seek
+  const layerMedia = useRef(new Map()); // layer <audio>/<video> that should be playing -> time it started from (see mediaWaiting)
   const latest = useRef({ project, time });
   latest.current = { project, time };
   const [guides, setGuides] = useState(null);
@@ -55,6 +56,8 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
       },
       onEnd: () => dispatch({ type: 'play', playing: false }),
       onShow: (t) => applyRef.current?.(t),
+      // Checked live each frame: while the clock holds, nothing re-renders to report it.
+      isWaiting: () => mediaWaiting(layerMedia.current),
     });
     window.__vcePlayback = engine.current; // debugging and end-to-end checks
     return () => engine.current.pause();
@@ -216,7 +219,7 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
             );
           })}
           {fx?.dip && <div className="dip" style={{ background: fx.dip.color, opacity: fx.dip.opacity }} />}
-          <Layers project={project} time={time} playing={playing} frame={frame} onDown={(e, id) => beginDrag(e, id, 'move')} />
+          <Layers project={project} time={time} playing={playing} frame={frame} live={layerMedia.current} onDown={(e, id) => beginDrag(e, id, 'move')} />
           {empty && <div className="stage-empty">Import media to start</div>}
           {project.captions.enabled && (
             <CaptionOverlay
@@ -257,7 +260,7 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
 }
 
 /** Layer and audio track items near the playhead, each kept in sync with the timeline. */
-function Layers({ project, time, playing, frame, onDown }) {
+function Layers({ project, time, playing, frame, live, onDown }) {
   const fps = project.fps || 30;
   const out = [];
   (project.tracks ?? []).forEach((track, ti) => {
@@ -268,15 +271,20 @@ function Layers({ project, time, playing, frame, onDown }) {
       if (!m) continue;
       out.push(
         <LayerItem key={item.id} item={item} track={track} z={10 + ti} media={m} span={span} time={time} playing={playing}
-          frame={frame} onDown={onDown} />,
+          frame={frame} live={live} onDown={onDown} />,
       );
     }
   });
   return out;
 }
 
-function LayerItem({ item, track, z, media, span, time, playing, frame, onDown }) {
+/**
+ * One layer or audio track item. Audio and video follow the timeline (see followTimeline) and, while they
+ * should be playing, sit in `live` so the timeline clock waits for them to buffer.
+ */
+function LayerItem({ item, track, z, media, span, time, playing, frame, live, onDown }) {
   const ref = useRef(null);
+  const lastSeek = useRef(-Infinity); // performance.now() of the last seek while playing
   const kind = mediaKind(media);
   const active = time >= span.start - 1e-6 && time < span.end;
   const local = clamp(time - span.start, 0, span.duration);
@@ -286,8 +294,13 @@ function LayerItem({ item, track, z, media, span, time, playing, frame, onDown }
     const el = ref.current;
     if (!el || !timed) return;
     const src = item.in + local * item.speed;
-    if (Math.abs(el.playbackRate - item.speed) > 1e-3) el.playbackRate = item.speed;
+    const setRate = (r) => {
+      if (Math.abs(el.playbackRate - r) > 1e-3) el.playbackRate = r;
+    };
+    if (!(active && playing)) live.delete(el);
+    else if (!live.has(el)) live.set(el, el.currentTime);
     if (!active) {
+      setRate(item.speed);
       if (!el.paused) el.pause();
       if (time < span.start && Math.abs(el.currentTime - item.in) > 0.05 && !el.seeking) el.currentTime = item.in;
       return;
@@ -295,13 +308,31 @@ function LayerItem({ item, track, z, media, span, time, playing, frame, onDown }
     setGain(el, track.muted ? 0 : audioGain(item, local, span.duration));
     if (playing) {
       if (el.paused) el.play()?.catch?.(() => {});
-      if (Math.abs(el.currentTime - src) > 0.25 && !el.seeking) el.currentTime = src;
+      if (el.seeking || el.readyState < 3) return; // still seeking or buffering: correcting now would only stack seeks
+      const now = performance.now();
+      const f = followTimeline({ drift: el.currentTime - src, speed: item.speed, sinceSeek: (now - lastSeek.current) / 1000 });
+      setRate(f.rate);
+      if (f.seek) {
+        el.currentTime = src;
+        lastSeek.current = now;
+        live.set(el, src); // the clock waits until it plays on from there
+      }
     } else {
+      setRate(item.speed);
       if (!el.paused) el.pause();
-      if (Math.abs(el.currentTime - src) > 0.02 && !el.seeking) el.currentTime = src;
+      // A paused video shows its frame, so it follows closely; paused audio is only heard on resume, and
+      // pulling it back the few hundredths it ran on past the pause would replay them.
+      const tolerance = el.tagName === 'AUDIO' ? 0.15 : 0.02;
+      if (Math.abs(el.currentTime - src) > tolerance && !el.seeking) el.currentTime = src;
     }
   });
-  useEffect(() => () => ref.current?.pause?.(), []);
+  useEffect(() => {
+    const el = ref.current;
+    return () => {
+      live.delete(el);
+      el?.pause?.();
+    };
+  }, [live]);
 
   const url = mediaUrl(media.proxyPath || media.path);
   if (kind === 'audio' || track.kind === 'audio') return <audio ref={ref} src={url} preload="auto" crossOrigin="anonymous" />;
