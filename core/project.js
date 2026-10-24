@@ -755,6 +755,80 @@ export function withSpeed(el, speed) {
   return { ...el, speed: next, keyframes: (el.keyframes ?? []).map((kf) => ({ ...kf, t: Math.round(kf.t * k * 1000) / 1000 })) };
 }
 
+// ---------- reverse ----------
+// Reverse plays an element backwards by swapping its media for a reversed copy of the element's source
+// range (made by FFmpeg in a background job). The copy remembers where it came from in `reverseOf`, so
+// everything else (preview, export, split, trim) treats it as ordinary forward media, and Reverse again
+// swaps the original back.
+
+/**
+ * Whether media is a reversed copy whose original is still in the project.
+ * @param {object} project
+ * @param {object} m media entry
+ * @returns {boolean}
+ */
+export function isReversedCopy(project, m) {
+  return Boolean(m?.reverseOf && project.media[m.reverseOf.mediaId]);
+}
+
+/**
+ * Whether an element can be reversed: video or audio (stills have no time to reverse).
+ * @param {object} m media entry
+ * @returns {boolean}
+ */
+export function canReverse(m) {
+  return Boolean(m) && !isStill(m) && (m.duration ?? 0) > 0;
+}
+
+/**
+ * The element on the reversed copy of its own range: source time s of [in, out] shows at copy time out - s.
+ * @param {object} el
+ * @param {string} mediaId the reversed copy
+ * @returns {object}
+ */
+export function onReversedCopy(el, mediaId) {
+  return { ...el, mediaId, in: 0, out: round3(el.out - el.in) };
+}
+
+/**
+ * The element back on the original media of a reversed copy, keeping the part it shows (after trims).
+ * @param {object} el element on the copy
+ * @param {{mediaId: string, in: number, out: number}} reverseOf
+ * @returns {object}
+ */
+export function offReversedCopy(el, reverseOf) {
+  return { ...el, mediaId: reverseOf.mediaId, in: round3(reverseOf.out - el.out), out: round3(reverseOf.out - el.in) };
+}
+
+/**
+ * A reversed copy is ready (reverse job result): add it to the media (once per file) and swap it in on
+ * the elements that asked for it, unless they were trimmed or moved to other media meanwhile.
+ * @param {object} project
+ * @param {{mediaId: string, elementIds: string[], range: {in: number, out: number}, path: string,
+ *   videoCodec?: string, audioCodec?: string, alpha?: boolean}} r
+ * @returns {object}
+ */
+export function addReversedCopy(project, r) {
+  const src = project.media[r.mediaId];
+  if (!src) return project;
+  let next = project;
+  let id = Object.values(project.media).find((m) => m.path === r.path)?.id;
+  if (!id) {
+    id = newId('media');
+    next = addMedia(project, {
+      ...src, id, path: r.path, name: `${src.name} (reversed)`, duration: round3(r.range.out - r.range.in),
+      videoCodec: r.videoCodec ?? src.videoCodec, audioCodec: r.audioCodec ?? src.audioCodec, alpha: Boolean(r.alpha),
+      words: null, proxyPath: null, cutoutOf: null, reverseOf: { mediaId: src.id, in: r.range.in, out: r.range.out },
+    });
+  }
+  for (const eid of r.elementIds) {
+    const f = findElement(next, eid);
+    const same = f && f.el.mediaId === r.mediaId && Math.abs(f.el.in - r.range.in) < 1e-3 && Math.abs(f.el.out - r.range.out) < 1e-3;
+    if (same) next = updateElement(next, eid, onReversedCopy(f.el, id));
+  }
+  return next;
+}
+
 // ---------- imported subtitles ----------
 
 /**

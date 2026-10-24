@@ -15,8 +15,9 @@ async function run({ evaluate, waitFor, drag, click, shot }) {
     clips: s.project.clips, past: s.past.length, time: s.time, playing: s.playing, project: s.project })); })()`);
   const rect = (sel) => evaluate(`(() => { const r = document.querySelector(${JSON.stringify(sel)}).getBoundingClientRect();
     return { x: r.x + r.width / 2, y: r.y + r.height / 2, left: r.left, right: r.right }; })()`);
-  const pps = Number(await evaluate("document.querySelector('.zoom input').dataset.pps"));
   await sleep(800);
+  // Read after the wait: opening a project fits the timeline to the window, which changes the zoom.
+  const pps = Number(await evaluate("document.querySelector('.zoom input').dataset.pps"));
 
   // 1. Drag-trim the end of the first clip 80 px to the left.
   let s0 = await st();

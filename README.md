@@ -18,6 +18,7 @@ Status: **0.3.0** (layers, keyframes, effects, background removal; see [docs/pla
 | Timeline | Ctrl/Shift+click clips (on the timeline or in the preview), or drag a box from empty timeline space across one or more tracks (clips, layer items and captions), to select several for Crop and Delete (Ctrl/Shift+drag adds; Ctrl/Shift+click adds or removes one clip, image, audio or caption without dropping the rest); split (S) the selected clip, image, GIF or audio at the playhead; drag an edge to trim or lengthen (images and GIFs have no length limit, e.g. one picture under a 70-minute podcast); drag main clips to reorder; snapping to the playhead and clip edges; every drag is one undo step; zoom with Ctrl + mouse wheel or touchpad pinch (at the pointer), − / + buttons or keys, the slider, or **Fit** (0) to see the whole timeline; importing media or opening a project fits the timeline to the window automatically, and long recordings (hours) zoom out to fit |
 | Position, size, crop | Click a picture in the preview to select it, drag to move (snaps to the centre), drag a corner to resize. **Crop** (timeline toolbar, next to Split) opens a crop window for the selected layers: crop box with eight handles, ratios (Free, Original, 16:9, 9:16, 1:1, 4:3, 3:4, which keep their shape while you drag), or typed left/top/right/bottom; Apply gives the same crop to every selected layer and leaves the others alone. The canvas ratio (16:9, 9:16, 1:1, 4:5, 4:3) is next to the play button |
 | Speed | 0.1× slow motion to 10× fast for video and audio clips: a slider with 1× in the middle, one-click steps (0.1, 0.25, 0.5, 1, 1.5, 2, 4, 10×) or a typed value, in the **Clip** tab; it changes every selected clip at once; keyframes move with the picture; sound keeps its pitch, in the preview and the export |
+| Reverse | **Reverse** in the timeline toolbar (or the Clip tab) plays the selected video and audio clips backwards, sound too. FFmpeg makes a backwards copy of each clip's range in the background (progress in the jobs bar), then the clip plays that copy; Reverse again brings the original back. A reversed clip has no auto captions (its words run backwards) |
 | Flip | **Flip ⇋** and **Flip ⇵** in the timeline toolbar (or the Clip tab) mirror the selected pictures left to right or upside down; press again to undo; with several picked, they all flip; position, size and crop stay where they were |
 | Keyframes | Add keyframes for position, size and opacity; with keyframes, moving or resizing at the playhead sets a keyframe there; pick the curve to the next keyframe (linear, ease in, ease out, ease in-out, hold) |
 | In and out effects | Fade, slide from or to any side, zoom in, zoom out, pop/shrink, with a length; on any picture |
@@ -70,7 +71,7 @@ For development with hot reload, use `npm run dev`.
 
 1. **Import media** (top bar, or **+ Import** in Media, or drop files on the window): video, audio, images, GIFs, or an `.srt` / `.vtt` file. Add more files at any time; drag them onto a track.
 2. In **Media**, press **Transcribe** on a video or audio file. Captions appear when it finishes; **Download captions** is on the card.
-3. Arrange: drag clips on the timeline, drag pictures in the preview, select layers (Ctrl+click for several) and press **Crop** or **Flip**, set the **Speed**, add **keyframes**, pick **in/out effects** and **transitions** in the **Clip** tab.
+3. Arrange: drag clips on the timeline, drag pictures in the preview, select layers (Ctrl+click for several) and press **Crop**, **Reverse** or **Flip**, set the **Speed**, add **keyframes**, pick **in/out effects** and **transitions** in the **Clip** tab.
 4. Style captions in the **Captions** tab or by dragging them in the preview; untick **All captions** to change only the captions you pick.
 5. Remove a background in the **Clip** tab (**AI** or **Colour key**).
 6. **Export** an MP4, or **Download…** the captions. Projects save as `.shotcut` (JSON; media is referenced, not copied). Projects from 0.2 open as they were.
@@ -86,6 +87,7 @@ Double-click the preview background to play or pause.
 | `electron/preload.cjs` | The `window.api` bridge (sandboxed, CommonJS) |
 | `electron/mediaProtocol.js` | `media://` protocol: serves only allowed local files, with range requests for seeking and CORS for Web Audio |
 | `electron/cutout.js` | Background removal: colour key with FFmpeg, AI with `vision/remove_bg.py`, model download |
+| `electron/reverse.js` | Reverse: backwards copy of a clip's range, made in chunks that fit in memory and joined last chunk first |
 | `electron/export.js`, `media.js`, `asr.js`, `tools.js`, `proc.js` | FFmpeg export, probe and proxies, the Python sidecar, settings and tool lookup, process runner and file moves (no Electron imports, so tests use them) |
 | `core/` | Pure logic shared by preview, export and tests: project and track ops, layout (`project.js`), transforms, keyframes, effects and placement (`anim.js`), transcript ops, caption cues, overrides and SRT/VTT/ASS (`captions.js`), FFmpeg graph (`exportPlan.js`), probe parsing (`media.js`) |
 | `src/` | React interface (Vite); `src/playback.js` is the two-video main-track engine, `src/stage.js` maps placement and transitions to CSS, `src/audio.js` the preview gain |
@@ -110,8 +112,9 @@ npm test
 - `npm run samples` makes `dev/samples/` (a Windows-voice speech clip, a talking test-pattern video, colour bars); the layer samples (logo, GIF, green screen, music, SRT) are made on first use.
 - `npm test` runs the `core/` unit tests, the playback engine with fake videos, real FFmpeg exports (duration, frame size, caption pixels; layers with keyframes, crop, fade, GIF, alpha WebM, per-caption placement, audio mix), background removal (colour key, and the AI path with a stand-in ONNX model made by `dev/tools/fake_matte_model.py`, so no download), and a real transcription + alignment (skipped when Python, the model or the samples are missing).
 - `npm run smoke` opens the real window on a sample project and saves `dev/out/smoke.png`.
-- `npm run e2e` drives the real window over the DevTools protocol with real mouse input, in two runs:
+- `npm run e2e` drives the real window over the DevTools protocol with real mouse input, in three runs:
   - `dev/tools/e2e.mjs` (18 checks): drag-trim, drag-reorder, undo, text cut, gap-free playback, caption and export presets, Settings.
+  - `dev/tools/e2e-motion.mjs` (22 checks): speed steps and the slider on two clips (one undo step), 10× playing in the preview and running on into the next clip, Flip ⇋ / ⇵ on one and several layers (the picture stays in place) and on a main clip, Reverse on a main clip (copy swapped in, captions gone, preview plays the copy, Reverse again restores it) and on a main clip and an audio item together (the same range is reused), undo.
   - `dev/tools/e2e-layers.mjs` (54 checks): layer placement and stacking, click-select, Ctrl+click multi-select, box select across layers, the main track and captions, Ctrl+click adding audio and removing an image from a mixed selection, move with snap, corner resize, the Crop window on two layers (others untouched), keyframes and curves, fade-in, moving items between layers, +6 dB through Web Audio, the transition preview, moving the caption box for all and for selected captions, caption trim, subtitle move, colour-key background removal, timeline zoom (Ctrl+wheel anchor, buttons, keys, Fit), later imports landing in Media, a file dropped on the window, dragging media onto a track, a 70-minute file fitting the window, an image stretched past an hour, captions and clips drawn at their time width when zoomed out, and play after a pause starting at the playhead.
   - Screenshots go to `dev/out/e2e-*.png`.
 
@@ -123,6 +126,7 @@ One FFmpeg run, with the graph written to `graph.txt` (`-/filter_complex`) and F
 - **Layers:** each item is cropped, flipped, faded and scaled, then `overlay`ed at its time, bottom layer first. Images loop (`-loop 1`), GIFs loop (`-ignore_loop 0`), transparent WebM is decoded with libvpx to keep the alpha.
 - **Animation:** keyframes and in/out effects become expressions in `t` (`overlay x/y`, `scale` with `eval=frame`, `geq` for changing opacity), piecewise linear through the same per-frame values the preview uses, so every frame matches and runs are deterministic.
 - **Audio:** volume (`volume=…dB`) and fades (`afade`) per clip, items delayed to their time (`adelay`) and mixed (`amix`, no normalisation).
+- **Reverse:** nothing special at export time: a reversed clip points at its backwards copy, read like any video or audio file.
 - **Captions:** burned in with libass (`ass=captions.ass`); each distinct caption look is its own ASS style, with the box place and width as margins.
 
 ## Limits
@@ -131,6 +135,7 @@ One FFmpeg run, with the graph written to `graph.txt` (`-/filter_complex`) and F
 - Preview colour uses CSS filters, an approximation of FFmpeg's `eq`; transitions in the preview are CSS look-alikes of `xfade`; the export is the reference.
 - GIFs animate on their own in the preview (not frame-locked to the playhead); the export is frame-exact.
 - AI background removal processes every frame on the CPU, so long videos take a while (IS-Net is the slowest); colour key is much faster. The pipeline is tested with a stand-in model; the real models download on first use. A transparent video copy is VP9 WebM, so it is larger than the original.
+- Reversed copies live in the app's `reversed` folder (`%APPDATA%\ShotCut\reversed` on Windows), one per file and range, as H.264 (CRF 16) with AAC, VP9 with alpha for transparent clips, or AAC for audio. A reversed clip can be trimmed shorter but not longer than the part that was reversed: Reverse it back, lengthen it, and reverse again.
 - Burned-in fonts must be installed on the PC (the list uses Windows fonts).
 - For distribution, bundle an LGPL FFmpeg build (with libvpx); the "full" builds are GPL.
 

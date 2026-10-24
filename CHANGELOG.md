@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Speed from 0.1× to 10× (was 0.25–4× in a list): a slider with 1× in the middle, one-click steps and a typed value in the Clip tab; it changes every selected video and audio clip at once, and keyframes move with the picture. Sound keeps its pitch in the preview and the export.
+- Reverse: the timeline toolbar and the Clip tab play the selected video and audio clips backwards, sound too. A backwards copy of each clip's range is made in the background (in chunks of about 300 MB of frames, joined last first, the sound joined as PCM and encoded once so the joins are seamless), swapped in, and swapped out again by a second Reverse. Same file and range: made once.
 - Flip: Flip ⇋ (left to right) and Flip ⇵ (upside down) in the timeline toolbar and the Clip tab, on one or several pictures; the cropped picture flips in place, in the preview and the export (`hflip`/`vflip` after the crop).
 - Fix: after a clip before it changed speed or length, the next clip took over at its old place in the preview (the hidden player kept its old timeline position), so playback jumped ahead.
 - Fix: swapping an element's media (for a reversed copy) clamped its range to the old media.

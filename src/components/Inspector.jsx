@@ -5,8 +5,8 @@ import {
 } from '../../core/anim.js';
 import { CAPTION_FORMATS, resetCaptionStyle, setCaptionStyle } from '../../core/captions.js';
 import {
-  ASPECTS, MAX_SPEED, MIN_CLIP, MIN_SPEED, SPEEDS, TRANSITIONS, elementSpan, findElement, frameSize, isStill, isVisual, mapElement,
-  mediaKind, removeSubtitles, updateElement, updateSubtitle,
+  ASPECTS, MAX_SPEED, MIN_CLIP, MIN_SPEED, SPEEDS, TRANSITIONS, canReverse, elementSpan, findElement, frameSize, isReversedCopy,
+  isStill, isVisual, mapElement, mediaKind, removeSubtitles, updateElement, updateSubtitle,
 } from '../../core/project.js';
 import { formatGlossary, parseGlossary } from '../../core/transcript.js';
 import { formatClock } from '../../core/time.js';
@@ -67,8 +67,10 @@ function ClipTab({ state, items, edit, dispatch, commands, onSeek }) {
   const nextKf = kfs.find((k) => k.t > local + 0.5 / fps);
   const crop = normCrop(el.crop);
   const job = Object.values(jobs).find((j) => j.kind === 'cutout' && j.elementId === el.id && j.status === 'running');
+  const revJob = Object.values(jobs).find((j) => j.kind === 'reverse' && j.elementIds?.includes(el.id) && j.status === 'running');
+  const reversed = isReversedCopy(project, m);
   const flip = el.flip ?? {};
-  // Speed and Flip change every selected clip that has them, not just the one shown.
+  // Speed, Reverse and Flip change every selected clip that has them, not just the one shown.
   const pickedEls = (selectedIds.includes(el.id) ? selectedIds : [el.id]).map((id) => findElement(project, id)).filter(Boolean);
   const timedCount = pickedEls.filter((f) => !isStill(project.media[f.el.mediaId])).length;
   const adj = (k, v) => set({ adjust: { ...el.adjust, [k]: v } }, k);
@@ -78,7 +80,7 @@ function ClipTab({ state, items, edit, dispatch, commands, onSeek }) {
   return (
     <>
       <h3 title={m?.path}>{m?.name}</h3>
-      {selectedIds.length > 1 && <p className="hint">{selectedIds.length} selected (Ctrl+click or drag a box to change) · showing the last one picked. Speed, Flip, Crop and Delete apply to all.</p>}
+      {selectedIds.length > 1 && <p className="hint">{selectedIds.length} selected (Ctrl+click or drag a box to change) · showing the last one picked. Speed, Reverse, Flip, Crop and Delete apply to all.</p>}
       <p className="hint">
         {found.kind === 'clip' ? 'Main track' : `${found.track.kind === 'layer' ? 'Layer' : 'Audio'} track`} · {kind}
         {' · '}{formatClock(span.start)}–{formatClock(span.end)}
@@ -110,6 +112,14 @@ function ClipTab({ state, items, edit, dispatch, commands, onSeek }) {
             count={timedCount}
             onChange={(v, live) => commands.setSpeed(v, live && `speed:${pickedEls.map((f) => f.el.id).join(',')}`)}
           />
+          {canReverse(m) && (
+            <div className="row-buttons">
+              <button className={reversed ? 'on' : ''} disabled={Boolean(revJob)} onClick={commands.reverseSelected} title="Play backwards, sound too (all selected clips)">
+                {revJob ? `Reversing… ${Math.round((revJob.progress ?? 0) * 100)}%` : reversed ? '◀◀ Reversed · play forwards' : '◀◀ Reverse'}
+              </button>
+              {!revJob && <span className="hint">{reversed ? 'Plays backwards.' : 'Makes a backwards copy of this part in the background.'}</span>}
+            </div>
+          )}
         </>
       )}
 

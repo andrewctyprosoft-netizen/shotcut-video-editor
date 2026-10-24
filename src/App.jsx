@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { captionsAs, mediaCues, parseSubtitles, projectCues, toSrt } from '../core/captions.js';
 import {
-  addItem, addMedia, addTrack, appendClip, createProject, elementSpan, findElement, frameSize, isStill, isVisual, itemSpan,
-  layout, mapElement, mediaKind, moveClipTo, moveItem, newId, removeClip, removeElement, removeItem, removeMedia,
-  removeSubtitles, setSubtitles, splitAt, splitItem, totalDuration, updateElement, updateMedia, withSpeed,
+  addItem, addMedia, addReversedCopy, addTrack, appendClip, canReverse, createProject, elementSpan, findElement, frameSize,
+  isReversedCopy, isStill, isVisual, itemSpan, layout, mapElement, mediaKind, moveClipTo, moveItem, newId, offReversedCopy,
+  removeClip, removeElement, removeItem, removeMedia, removeSubtitles, setSubtitles, splitAt, splitItem, totalDuration,
+  updateElement, updateMedia, withSpeed,
 } from '../core/project.js';
 import { timelineWords } from '../core/transcript.js';
 import { api } from './api.js';
@@ -62,6 +63,7 @@ export function App() {
     const r = job.result;
     if (job.kind === 'proxy') dispatch({ type: 'patchAll', fn: (p) => updateMedia(p, r.mediaId, { proxyPath: r.proxyPath }) });
     if (job.kind === 'transcribe' || job.kind === 'align') dispatch({ type: 'edit', fn: (p) => updateMedia(p, r.mediaId, { words: r.words }) });
+    if (job.kind === 'reverse') dispatch({ type: 'edit', fn: (p) => addReversedCopy(p, r) });
     if (job.kind === 'cutout') {
       dispatch({
         type: 'edit',
@@ -71,7 +73,7 @@ export function App() {
           const id = newId('media');
           const kind = mediaKind(src);
           const cut = {
-            ...src, id, path: r.path, name: `${src.name} (no background)`, cutoutOf: src.id, proxyPath: null,
+            ...src, id, path: r.path, name: `${src.name} (no background)`, cutoutOf: src.id, reverseOf: null, proxyPath: null,
             ...(kind === 'video' ? { alpha: true, videoCodec: 'vp9', audioCodec: src.hasAudio ? 'opus' : null } : {}),
           };
           const next = addMedia(p, cut);
@@ -171,6 +173,34 @@ export function App() {
         }
         return addItem(p, mediaId, t, { trackId: target });
       });
+    },
+    /**
+     * Reverse the selected video and audio clips (each plays backwards, sound too). When every one is
+     * already reversed, they go back to playing forwards instead. Reversing makes a backwards copy of each
+     * clip's range in the background; the same range of the same file is made once.
+     */
+    reverseSelected() {
+      const { project: p, selectedIds, jobs: running } = stateRef.current;
+      const els = selectedIds.map((id) => findElement(p, id)).filter((f) => f && canReverse(p.media[f.el.mediaId]));
+      if (!els.length) return;
+      const isRev = (f) => isReversedCopy(p, p.media[f.el.mediaId]);
+      if (els.every(isRev)) {
+        edit((x) => els.reduce((q, f) => mapElement(q, f.el.id, (el) => offReversedCopy(el, x.media[el.mediaId].reverseOf)), x));
+        return;
+      }
+      const busy = new Set(Object.values(running).filter((j) => j.kind === 'reverse' && j.status === 'running').flatMap((j) => j.elementIds ?? []));
+      const groups = new Map();
+      for (const f of els) {
+        if (isRev(f) || busy.has(f.el.id)) continue;
+        const key = `${f.el.mediaId}|${f.el.in}|${f.el.out}`;
+        if (!groups.has(key)) groups.set(key, { mediaId: f.el.mediaId, range: { in: f.el.in, out: f.el.out }, elementIds: [] });
+        groups.get(key).elementIds.push(f.el.id);
+      }
+      for (const g of groups.values()) {
+        const m = p.media[g.mediaId];
+        const info = { path: m.path, hasVideo: Boolean(m.hasVideo), hasAudio: Boolean(m.hasAudio), width: m.width, height: m.height, fps: m.fps, alpha: Boolean(m.alpha) };
+        startJob('reverse', `Reverse ${m.name}`, { ...g, info }, { mediaId: g.mediaId, elementIds: g.elementIds });
+      }
     },
     /** Mirror the selected pictures left-right ('h') or upside down ('v'); when all are mirrored, unmirror them. */
     flipSelected(axis) {

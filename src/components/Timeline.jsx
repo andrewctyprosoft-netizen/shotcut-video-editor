@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { projectCues, setCueTiming } from '../../core/captions.js';
 import {
-  addTrack, elementSpan, findElement, isStill, isVisual, itemSpan, layout, mediaKind, moveClipTo, moveItem, moveTrack, newId,
-  removeTrack, trimClip, trimItem, updateTrack,
+  addTrack, canReverse, elementSpan, findElement, isReversedCopy, isStill, isVisual, itemSpan, layout, mediaKind, moveClipTo,
+  moveItem, moveTrack, newId, removeTrack, trimClip, trimItem, updateTrack,
 } from '../../core/project.js';
 import { formatClock, snapTime } from '../../core/time.js';
 import { timelineWords } from '../../core/transcript.js';
@@ -24,8 +24,9 @@ const HEAD = 156; // track header column, px (matches .row .head in styles.css)
  * so zoomed out a 2-second caption was drawn 14 px (about 50 s at Fit on a 70-minute timeline). */
 const NARROW = 16;
 const narrow = (w) => (w < NARROW ? ' narrow' : '');
-/** Badge text for a clip or item: speed, flips and mute. */
+/** Badge text for a clip or item: reversed, speed, flips and mute. */
 const tagsOf = (project, el, m) => [
+  isReversedCopy(project, m) && '◀◀',
   el.speed !== 1 && `${Math.round(el.speed * 100) / 100}×`,
   el.flip?.h && '⇋',
   el.flip?.v && '⇵',
@@ -475,6 +476,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
       <div className="tl-toolbar">
         <button onClick={commands.splitAtPlayhead} disabled={!items.length && !tracks.some((t) => t.items.length)} title="Split at playhead (S)">Split</button>
         <button onClick={commands.openCrop} disabled={!pictures.length} title="Crop the selected layers (Ctrl+click or drag a box on the timeline to pick several)">Crop</button>
+        <button onClick={commands.reverseSelected} disabled={!picked.some((f) => canReverse(project.media[f.el.mediaId]))} title="Play the selected video and audio clips backwards (again: forwards)">Reverse</button>
         <button onClick={() => commands.flipSelected('h')} disabled={!pictures.length} title="Mirror the selected pictures left to right">Flip ⇋</button>
         <button onClick={() => commands.flipSelected('v')} disabled={!pictures.length} title="Turn the selected pictures upside down">Flip ⇵</button>
         <button onClick={commands.deleteSelected} disabled={!selectedIds.length && !selectedCues.length} title="Delete selected (Del)">Delete</button>

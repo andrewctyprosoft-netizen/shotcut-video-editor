@@ -52,7 +52,7 @@ core/  pure ESM shared by both sides: project ops, layout, transcript ops,
 |:------|:--------|
 | `aspect`, `fit`, `fps` | Output frame (16:9, 9:16, 1:1), fit-with-bars or fill-and-crop, frame rate |
 | `media{id}` | Path, probe info, optional proxy path, ASR `words[]` (`text`, `start`, `end`, optional `br` cue break) |
-| `media{id}.kind` | `video`, `audio`, `image` (a still) or `gif` (loops: GIF, APNG); `alpha` for transparent WebM; `cutoutOf` for a background-removed copy |
+| `media{id}.kind` | `video`, `audio`, `image` (a still) or `gif` (loops: GIF, APNG); `alpha` for transparent WebM; `cutoutOf` for a background-removed copy; `reverseOf` (`mediaId`, `in`, `out`) for a reversed copy of a range |
 | `clips[]` | Main track (magnetic): `mediaId`, source `in`/`out`, `speed`, `adjust`, `transition` into this clip, plus the element fields below |
 | `tracks[]` | Layer and audio tracks: `kind`, `hidden`, `muted`, `items[]`; layer order is stacking order (last = front) |
 | `tracks[].items[]` | Placed at `start` (timeline seconds) with `in`/`out`/`speed` and the element fields |
@@ -120,7 +120,7 @@ Gap-free playback, measured by `npm run e2e` on the sample (presented-frame gap 
 - [x] Transitions in the preview (CSS look-alikes of `xfade`; both clips play through the overlap).
 - [x] Caption box drag/resize; per-caption style and timing ("All captions" or only the selected ones); caption fade and pop; SRT/VTT import; SRT/VTT/ASS/TXT download.
 - [x] Volume -40 (mute) to +20 dB with Web Audio in the preview; audio fades; `amix` export.
-- [x] Speed 0.1×–10× (log slider and steps, several clips at once), Flip horizontal/vertical.
+- [x] Speed 0.1×–10× (log slider and steps, several clips at once), Reverse (backwards copies of each clip's range, made in memory-bounded chunks), Flip horizontal/vertical.
 - [ ] Text titles as their own layer item, rotation, thumbnails on video clips.
 - [ ] WebGL preview of colour (and exact transitions) so preview matches export.
 

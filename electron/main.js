@@ -1,5 +1,5 @@
 // Electron main process: window, media:// protocol, dialogs and background jobs
-// (proxy, transcribe, align, background removal, export).
+// (proxy, transcribe, align, background removal, reverse, export).
 
 import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -12,6 +12,7 @@ import { alignTranscript, transcribe } from './asr.js';
 import { makeCutout } from './cutout.js';
 import { runExport } from './export.js';
 import { makeProxy, probe } from './media.js';
+import { makeReversed } from './reverse.js';
 import { allowMedia, handleMediaProtocol, registerMediaScheme } from './mediaProtocol.js';
 import {
   loadSettings, resetPythonCache, resolveEncoder, resolveFfmpeg, resolveModel, resolvePython, saveSettings, toolStatus,
@@ -194,6 +195,13 @@ const JOBS = {
     });
     allowMedia(path);
     return { mediaId, elementId, path, method };
+  },
+  async reverse({ mediaId, elementIds, info, range }, signal, progress, workDir) {
+    const { ffmpeg, ffprobe } = resolveFfmpeg(settings, appRoot);
+    const path = await makeReversed({ ffmpeg, info, range, outDir: join(app.getPath('userData'), 'reversed'), workDir, signal, onProgress: progress });
+    allowMedia(path);
+    const { videoCodec, audioCodec, alpha } = await probe(ffprobe, path);
+    return { mediaId, elementIds, range, path, videoCodec, audioCodec, alpha };
   },
   async export({ project, output }, signal, progress, workDir) {
     const { ffmpeg } = resolveFfmpeg(settings, appRoot);
