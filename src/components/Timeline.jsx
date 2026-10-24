@@ -24,6 +24,11 @@ const HEAD = 156; // track header column, px (matches .row .head in styles.css)
  * so zoomed out a 2-second caption was drawn 14 px (about 50 s at Fit on a 70-minute timeline). */
 const NARROW = 16;
 const narrow = (w) => (w < NARROW ? ' narrow' : '');
+/** Badge text for a clip or item: speed and mute. */
+const tagsOf = (project, el, m) => [
+  el.speed !== 1 && `${Math.round(el.speed * 100) / 100}×`,
+  (el.volume ?? 0) <= -40 && m?.hasAudio && '🔇',
+].filter(Boolean).join(' ');
 
 /**
  * Timeline: ruler, caption track, layer tracks (front-most on top), the main track and audio tracks.
@@ -422,7 +427,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
         title={`${m?.name ?? 'missing'} · ${formatClock(span.start)}–${formatClock(span.end)}`}
       >
         <span className="clip-label">{m?.name ?? 'missing media'}</span>
-        {(it.volume ?? 0) <= -40 && m?.hasAudio && <span className="badge">🔇</span>}
+        {tagsOf(project, it, m) && <span className="badge">{tagsOf(project, it, m)}</span>}
         {isDragged && drag.kind === 'trim' && <span className="badge dur">{formatClock(span.duration)}</span>}
         {keyframeMarks(it, span)}
         <span className="handle left" data-edge="in" onPointerDown={(e) => pickElement(e, it.id, 'trim', 'in')} />
@@ -563,7 +568,7 @@ export function Timeline({ state, items, cues, total, dispatch, onSeek, commands
                   >
                     {it.overlap > 0 && <span className="transition-mark" style={{ width: it.overlap * pps }} title={it.clip.transition.type} />}
                     <span className="clip-label">{m?.name ?? 'missing media'}</span>
-                    {it.clip.speed !== 1 && <span className="badge">{it.clip.speed}×</span>}
+                    {tagsOf(project, it.clip, m) && <span className="badge">{tagsOf(project, it.clip, m)}</span>}
                     {drag?.moved && drag.kind === 'trim' && isDragged && <span className="badge dur">{formatClock(it.duration)}</span>}
                     {span && keyframeMarks(it.clip, span)}
                     <span className="handle left" data-edge="in" onPointerDown={(e) => pickElement(e, it.clip.id, 'trim', 'in')} />

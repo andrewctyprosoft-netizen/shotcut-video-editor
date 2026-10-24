@@ -5,8 +5,8 @@ import {
 } from '../../core/anim.js';
 import { CAPTION_FORMATS, resetCaptionStyle, setCaptionStyle } from '../../core/captions.js';
 import {
-  ASPECTS, MIN_CLIP, SPEEDS, TRANSITIONS, elementSpan, findElement, frameSize, isStill, isVisual, mapElement, mediaKind,
-  removeSubtitles, updateElement, updateSubtitle,
+  ASPECTS, MAX_SPEED, MIN_CLIP, MIN_SPEED, SPEEDS, TRANSITIONS, elementSpan, findElement, frameSize, isStill, isVisual, mapElement,
+  mediaKind, removeSubtitles, updateElement, updateSubtitle,
 } from '../../core/project.js';
 import { formatGlossary, parseGlossary } from '../../core/transcript.js';
 import { formatClock } from '../../core/time.js';
@@ -67,6 +67,9 @@ function ClipTab({ state, items, edit, dispatch, commands, onSeek }) {
   const nextKf = kfs.find((k) => k.t > local + 0.5 / fps);
   const crop = normCrop(el.crop);
   const job = Object.values(jobs).find((j) => j.kind === 'cutout' && j.elementId === el.id && j.status === 'running');
+  // Speed changes every selected clip that has it, not just the one shown.
+  const pickedEls = (selectedIds.includes(el.id) ? selectedIds : [el.id]).map((id) => findElement(project, id)).filter(Boolean);
+  const timedCount = pickedEls.filter((f) => !isStill(project.media[f.el.mediaId])).length;
   const adj = (k, v) => set({ adjust: { ...el.adjust, [k]: v } }, k);
   const first = project.clips[0]?.id === el.id;
   const db = el.volume ?? 0;
@@ -74,7 +77,7 @@ function ClipTab({ state, items, edit, dispatch, commands, onSeek }) {
   return (
     <>
       <h3 title={m?.path}>{m?.name}</h3>
-      {selectedIds.length > 1 && <p className="hint">{selectedIds.length} selected (Ctrl+click or drag a box to change) · showing the last one picked. Crop and Delete apply to all.</p>}
+      {selectedIds.length > 1 && <p className="hint">{selectedIds.length} selected (Ctrl+click or drag a box to change) · showing the last one picked. Speed, Crop and Delete apply to all.</p>}
       <p className="hint">
         {found.kind === 'clip' ? 'Main track' : `${found.track.kind === 'layer' ? 'Layer' : 'Audio'} track`} · {kind}
         {' · '}{formatClock(span.start)}–{formatClock(span.end)}
@@ -101,11 +104,11 @@ function ClipTab({ state, items, edit, dispatch, commands, onSeek }) {
             </Field>
           </div>
           <p className="hint">Source {formatClock(el.in)} – {formatClock(el.out)} of {formatClock(m?.duration ?? 0)}</p>
-          <Field label="Speed">
-            <select value={el.speed} onChange={(e) => set({ speed: Number(e.target.value) })}>
-              {SPEEDS.map((s) => <option key={s} value={s}>{s}×</option>)}
-            </select>
-          </Field>
+          <SpeedControl
+            speed={el.speed}
+            count={timedCount}
+            onChange={(v, live) => commands.setSpeed(v, live && `speed:${pickedEls.map((f) => f.el.id).join(',')}`)}
+          />
         </>
       )}
 
@@ -475,6 +478,46 @@ function ProjectTab({ project, edit }) {
           {[24, 25, 30, 50, 60].map((f) => <option key={f} value={f}>{f} fps</option>)}
         </select>
       </Field>
+    </>
+  );
+}
+
+/** Speed from MIN_SPEED to MAX_SPEED: a log-scale slider (1× in the middle), one-click steps and a typed value. */
+function SpeedControl({ speed, count, onChange }) {
+  const snap = (x) => Math.round(Math.min(MAX_SPEED, Math.max(MIN_SPEED, x)) * 100) / 100;
+  return (
+    <>
+      <label className="field">
+        <span>
+          Speed <em>{round(speed)}×</em>
+        </span>
+        <input
+          type="range"
+          aria-label="Speed"
+          min={Math.log10(MIN_SPEED)}
+          max={Math.log10(MAX_SPEED)}
+          step={0.005}
+          value={Math.log10(speed)}
+          onChange={(e) => onChange(snap(10 ** Number(e.target.value)), true)}
+        />
+      </label>
+      <div className="row-buttons speeds">
+        {SPEEDS.map((s) => (
+          <button key={s} className={Math.abs(speed - s) < 1e-6 ? 'on' : ''} onClick={() => onChange(s)}>{s}×</button>
+        ))}
+        <input
+          type="number"
+          aria-label="Speed (typed)"
+          min={MIN_SPEED}
+          max={MAX_SPEED}
+          step={0.05}
+          value={round(speed)}
+          onChange={(e) => Number(e.target.value) > 0 && onChange(snap(Number(e.target.value)), true)}
+        />
+      </div>
+      <p className="hint">
+        {count > 1 ? `Applies to the ${count} selected clips. ` : ''}Slower than 1× is slow motion, faster shortens the clip; sound keeps its pitch.
+      </p>
     </>
   );
 }

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Speed from 0.1× to 10× (was 0.25–4× in a list): a slider with 1× in the middle, one-click steps and a typed value in the Clip tab; it changes every selected video and audio clip at once, and keyframes move with the picture. Sound keeps its pitch in the preview and the export.
 - Fix: after a clip before it changed speed or length, the next clip took over at its old place in the preview (the hidden player kept its old timeline position), so playback jumped ahead.
 - Fix: swapping an element's media (for a reversed copy) clamped its range to the old media.
 - Fix: zoomed out, captions and short clips were drawn wider than their time (padding made every block at least 14 px, about 50 s on a 70-minute timeline), so the caption track looked longer than the audio. Narrow blocks now drop their padding.

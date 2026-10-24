@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { captionsAs, mediaCues, parseSubtitles, projectCues, toSrt } from '../core/captions.js';
 import {
-  addItem, addMedia, addTrack, appendClip, createProject, elementSpan, findElement, frameSize, isVisual, itemSpan, layout,
-  mediaKind, moveClipTo, moveItem, newId, removeClip, removeElement, removeItem, removeMedia, removeSubtitles, setSubtitles,
-  splitAt, splitItem, totalDuration, updateElement, updateMedia,
+  addItem, addMedia, addTrack, appendClip, createProject, elementSpan, findElement, frameSize, isStill, isVisual, itemSpan,
+  layout, mapElement, mediaKind, moveClipTo, moveItem, newId, removeClip, removeElement, removeItem, removeMedia,
+  removeSubtitles, setSubtitles, splitAt, splitItem, totalDuration, updateElement, updateMedia, withSpeed,
 } from '../core/project.js';
 import { timelineWords } from '../core/transcript.js';
 import { api } from './api.js';
@@ -171,6 +171,15 @@ export function App() {
         }
         return addItem(p, mediaId, t, { trackId: target });
       });
+    },
+    /** Speed (0.1x to 10x) of the selected video and audio clips; `coalesce` merges slider moves into one undo step. */
+    setSpeed(speed, coalesce) {
+      const { project: p, selectedIds, selectedClipId } = stateRef.current;
+      const ids = (selectedIds.length ? selectedIds : [selectedClipId]).filter((id) => {
+        const f = findElement(p, id);
+        return f && !isStill(p.media[f.el.mediaId]);
+      });
+      if (ids.length) edit((x) => ids.reduce((q, id) => mapElement(q, id, (el) => withSpeed(el, speed)), x), coalesce);
     },
     openCrop() {
       const { project: p, selectedIds } = stateRef.current;

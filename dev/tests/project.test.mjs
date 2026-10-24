@@ -43,8 +43,8 @@ test('speed shortens the clip on the timeline and maps source time', () => {
 test('updateClip clamps in/out/speed to the media', () => {
   let p = projectWith(media('a', 10));
   const id = p.clips[0].id;
-  p = updateClip(p, id, { in: -3, out: 99, speed: 9 });
-  assert.deepEqual([p.clips[0].in, p.clips[0].out, p.clips[0].speed], [0, 10, 4]);
+  p = updateClip(p, id, { in: -3, out: 99, speed: 99 });
+  assert.deepEqual([p.clips[0].in, p.clips[0].out, p.clips[0].speed], [0, 10, 10]);
   p = updateClip(p, id, { in: 6, out: 5 });
   assert.ok(p.clips[0].out - p.clips[0].in >= 0.1 - 1e-9);
 });

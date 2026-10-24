@@ -28,7 +28,10 @@ export const MIN_CLIP = 0.1;
 /** Default length of an image on the timeline. Stills and looping GIFs can be stretched to any length. */
 export const STILL_LENGTH = 5;
 const EPS = 1e-6;
-export const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 2];
+/** Speed range (0.1× slow motion to 10× fast) and the one-click steps offered next to the slider. */
+export const MIN_SPEED = 0.1;
+export const MAX_SPEED = 10;
+export const SPEEDS = [0.1, 0.25, 0.5, 1, 1.5, 2, 4, 10];
 
 /** FFmpeg `xfade` transitions offered in the UI: [value, label]. */
 export const TRANSITIONS = [
@@ -737,6 +740,20 @@ export function elementSpan(project, id, items = layout(project)) {
   return it ? { start: it.start, end: it.end, duration: it.duration } : null;
 }
 
+/**
+ * An element at a new speed. Keyframes are moved with the picture they belong to, so a move that ran
+ * over the first half of the clip still does.
+ * @param {object} el clip or track item
+ * @param {number} speed MIN_SPEED..MAX_SPEED
+ * @returns {object} still to be clamped (updateElement does that)
+ */
+export function withSpeed(el, speed) {
+  const next = Math.min(MAX_SPEED, Math.max(MIN_SPEED, Number(speed) || 1));
+  const k = (el.speed || 1) / next;
+  if (Math.abs(k - 1) < 1e-9) return el;
+  return { ...el, speed: next, keyframes: (el.keyframes ?? []).map((kf) => ({ ...kf, t: Math.round(kf.t * k * 1000) / 1000 })) };
+}
+
 // ---------- imported subtitles ----------
 
 /**
@@ -804,7 +821,7 @@ function naturalLength(m) {
 function clampClip(c, media) {
   const still = isStill(media);
   const dur = still ? Infinity : media?.duration ?? c.out;
-  const speed = still ? 1 : Math.min(4, Math.max(0.25, Number(c.speed) || 1));
+  const speed = still ? 1 : Math.round(Math.min(MAX_SPEED, Math.max(MIN_SPEED, Number(c.speed) || 1)) * 1000) / 1000;
   let inT = Math.min(Math.max(Number(c.in) || 0, 0), Math.max(dur - MIN_CLIP, 0));
   let outT = Math.min(Math.max(Number(c.out) || 0, inT + MIN_CLIP), dur);
   if (outT - inT < MIN_CLIP) inT = Math.max(0, outT - MIN_CLIP);

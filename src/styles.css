@@ -219,6 +219,9 @@ fieldset.plain:disabled { opacity: 0.5; }
 .check { display: flex; gap: 6px; align-items: center; }
 .row-buttons { display: flex; gap: 6px; flex-wrap: wrap; }
 .row-buttons.end { justify-content: flex-end; }
+.row-buttons.speeds { gap: 4px; }
+.row-buttons.speeds button { padding: 2px 6px; min-width: 0; }
+.row-buttons.speeds input { width: 64px; }
 .seg { display: flex; }
 .seg button { flex: 1; border-radius: 0; }
 .seg button:first-child { border-radius: 6px 0 0 6px; }
