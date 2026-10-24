@@ -49,6 +49,13 @@ test('updateClip clamps in/out/speed to the media', () => {
   assert.ok(p.clips[0].out - p.clips[0].in >= 0.1 - 1e-9);
 });
 
+test('updateClip clamps to the media the patch moves the clip to', () => {
+  let p = projectWith(media('a', 4));
+  p = { ...p, media: { ...p.media, b: media('b', 20) } };
+  p = updateClip(p, p.clips[0].id, { mediaId: 'b', in: 6, out: 15 });
+  assert.deepEqual([p.clips[0].mediaId, p.clips[0].in, p.clips[0].out], ['b', 6, 15]);
+});
+
 test('split creates two clips, refuses tiny pieces, and splitAt uses timeline time', () => {
   const p = projectWith(media('a', 10));
   const id = p.clips[0].id;

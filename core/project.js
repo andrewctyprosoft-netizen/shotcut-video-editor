@@ -250,7 +250,8 @@ export function appendClip(project, mediaId, range = {}) {
  * @returns {object}
  */
 export function updateClip(project, clipId, patch) {
-  const clips = project.clips.map((c) => (c.id === clipId ? clampClip({ ...c, ...patch }, project.media[c.mediaId]) : c));
+  // Clamped to the media the clip ends up on (a patch may swap it, e.g. for a reversed copy).
+  const clips = project.clips.map((c) => (c.id === clipId ? clampClip({ ...c, ...patch }, project.media[patch.mediaId ?? c.mediaId]) : c));
   return normalizeTransitions({ ...project, clips });
 }
 
@@ -549,7 +550,7 @@ export function updateItem(project, itemId, patch) {
   const fps = project.fps || 30;
   return mapItems(project, (it) => {
     if (it.id !== itemId) return it;
-    const next = clampClip({ ...it, ...patch }, project.media[it.mediaId]);
+    const next = clampClip({ ...it, ...patch }, project.media[patch.mediaId ?? it.mediaId]);
     return { ...next, start: roundFrame(Math.max(0, next.start), fps) };
   });
 }
