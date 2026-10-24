@@ -31,6 +31,8 @@ const QUALITY = {
   small: { crf: 26, cq: 28, qp: 27, audio: '128k' },
 };
 const AFORMAT = 'aresample=48000,aformat=sample_fmts=fltp:channel_layouts=stereo';
+/** Peak limiter for boosted exports: -1 dBFS ceiling, 5 ms look-ahead, no make-up gain. */
+export const LIMITER = 'alimiter=limit=0.891:attack=5:release=50:level=false:latency=true';
 const MAX_PX = 8192;
 
 /**
@@ -184,7 +186,12 @@ export function buildExportPlan(project, opts = {}) {
 
   // ----- 3. captions and outputs -----
   graph.push(opts.captionsFile ? `[${v}]ass=${opts.captionsFile}[vout]` : `[${v}]null[vout]`);
-  graph.push(extraAudio.length || padded ? `[${a}]apad=whole_dur=${num(total)},atrim=duration=${num(total)}[aout]` : `[${a}]anull[aout]`);
+  // Gain above 0 dB can push peaks past full scale: a look-ahead limiter (latency-compensated, so sync holds) caps them at -1 dBFS.
+  const boosted = [...project.clips, ...(project.tracks ?? []).flatMap((t) => t.items)].some((el) => (el.volume ?? 0) > 0);
+  const limiter = boosted ? `,${LIMITER}` : '';
+  graph.push(extraAudio.length || padded
+    ? `[${a}]apad=whole_dur=${num(total)},atrim=duration=${num(total)}${limiter}[aout]`
+    : `[${a}]anull${limiter}[aout]`);
 
   const quality = opts.quality ?? project.export?.quality ?? 'high';
   const outputArgs = [

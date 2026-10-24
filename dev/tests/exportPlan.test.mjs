@@ -28,6 +28,17 @@ test('cuts use concat; audio-only media gets a black frame; fill crops', () => {
   assert.match(plan.graph, /\[vx1\]null\[vout\]/);
 });
 
+test('gain above 0 dB adds the peak limiter on the output; 0 dB or less does not', () => {
+  const p = projectWith(media('a', 2));
+  assert.match(buildExportPlan(p).graph, /\[a0\]anull\[aout\]/);
+  const cut = updateClip(p, p.clips[0].id, { volume: -6 });
+  assert.ok(!buildExportPlan(cut).graph.includes('alimiter'), 'no limiter when nothing is boosted');
+  const loud = updateClip(p, p.clips[0].id, { volume: 11 });
+  const graph = buildExportPlan(loud).graph;
+  assert.match(graph, /volume=11dB/);
+  assert.match(graph, /\[a0\]anull,alimiter=limit=0\.891:attack=5:release=50:level=false:latency=true\[aout\]/);
+});
+
 test('empty timeline is an error', () => {
   assert.throws(() => buildExportPlan(projectWith()), /empty/);
 });

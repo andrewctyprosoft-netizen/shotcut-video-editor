@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Export: when any clip or item has its volume above 0 dB, the final mix goes through a peak limiter (`alimiter`, −1 dBFS ceiling, 5 ms look-ahead, latency-compensated). A +11 dB boost on an already loud recording clipped about 200 times a minute; now it stays clean and loud. Exports at 0 dB or below are unchanged.
 - Speed from 0.1× to 10× (was 0.25–4× in a list): a slider with 1× in the middle, one-click steps and a typed value in the Clip tab; it changes every selected video and audio clip at once, and keyframes move with the picture. Sound keeps its pitch in the preview and the export.
 - Reverse: the timeline toolbar and the Clip tab play the selected video and audio clips backwards, sound too. A backwards copy of each clip's range is made in the background (in chunks of about 300 MB of frames, joined last first, the sound joined as PCM and encoded once so the joins are seamless), swapped in, and swapped out again by a second Reverse. Same file and range: made once.
 - Flip: Flip ⇋ (left to right) and Flip ⇵ (upside down) in the timeline toolbar and the Clip tab, on one or several pictures; the cropped picture flips in place, in the preview and the export (`hflip`/`vflip` after the crop).
