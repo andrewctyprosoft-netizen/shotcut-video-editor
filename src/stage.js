@@ -12,18 +12,25 @@ export function rectCss(r, [W, H]) {
 }
 
 /**
- * CSS for a picture element: the whole source at its placed size, clipped to the crop, faded.
+ * CSS for a picture element: the whole source at its placed size, clipped to the crop, faded, and
+ * mirrored when flipped. A CSS flip turns the element (and its clip-path) around its own centre, so the
+ * element is shifted to keep the cropped part where the export draws it: in the frame's crop box.
  * @param {ReturnType<import('../core/anim.js').placement>} p
  * @param {[number, number]} frame
+ * @param {{h?: boolean, v?: boolean} | null} [flip]
  * @returns {object}
  */
-export function pictureCss(p, frame) {
+export function pictureCss(p, frame, flip = null) {
   const c = p.crop;
   const pct = (x) => `${Math.max(0, x * 100)}%`;
+  const full = { ...p.full };
+  if (flip?.h) full.left = p.box.left - (1 - c.x - c.w) * full.width;
+  if (flip?.v) full.top = p.box.top - (1 - c.y - c.h) * full.height;
   return {
-    ...rectCss(p.full, frame),
+    ...rectCss(full, frame),
     clipPath: `inset(${pct(c.y)} ${pct(1 - c.x - c.w)} ${pct(1 - c.y - c.h)} ${pct(c.x)})`,
     opacity: p.opacity,
+    transform: flip?.h || flip?.v ? `scale(${flip.h ? -1 : 1}, ${flip.v ? -1 : 1})` : '',
   };
 }
 

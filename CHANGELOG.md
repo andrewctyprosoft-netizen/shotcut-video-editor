@@ -3,8 +3,10 @@
 ## Unreleased
 
 - Speed from 0.1× to 10× (was 0.25–4× in a list): a slider with 1× in the middle, one-click steps and a typed value in the Clip tab; it changes every selected video and audio clip at once, and keyframes move with the picture. Sound keeps its pitch in the preview and the export.
+- Flip: Flip ⇋ (left to right) and Flip ⇵ (upside down) in the timeline toolbar and the Clip tab, on one or several pictures; the cropped picture flips in place, in the preview and the export (`hflip`/`vflip` after the crop).
 - Fix: after a clip before it changed speed or length, the next clip took over at its old place in the preview (the hidden player kept its old timeline position), so playback jumped ahead.
 - Fix: swapping an element's media (for a reversed copy) clamped its range to the old media.
+- Timeline toolbar buttons no longer wrap onto two lines in a narrow window; the hint text shortens instead.
 - Fix: zoomed out, captions and short clips were drawn wider than their time (padding made every block at least 14 px, about 50 s on a 70-minute timeline), so the caption track looked longer than the audio. Narrow blocks now drop their padding.
 - Fix: audio stuttered or repeated when the timeline had no video under the playhead (audio on an audio track, with images): pressing play jumped the timeline ahead by the time it had sat paused (or since the last seek), and the audio was cut to catch up. Play now starts at the playhead.
 - Audio and video layers now follow the timeline by easing their speed (up to 6%, pitch kept) instead of seeking at every 0.25 s of drift; they seek only when more than 0.75 s off, at most once per 1.5 s, and the timeline waits (up to 5 s) for them to start or buffer. Paused audio is no longer pulled back a few hundredths, which replayed them on resume.

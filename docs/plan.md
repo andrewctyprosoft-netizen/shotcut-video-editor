@@ -56,7 +56,7 @@ core/  pure ESM shared by both sides: project ops, layout, transcript ops,
 | `clips[]` | Main track (magnetic): `mediaId`, source `in`/`out`, `speed`, `adjust`, `transition` into this clip, plus the element fields below |
 | `tracks[]` | Layer and audio tracks: `kind`, `hidden`, `muted`, `items[]`; layer order is stacking order (last = front) |
 | `tracks[].items[]` | Placed at `start` (timeline seconds) with `in`/`out`/`speed` and the element fields |
-| Element fields | `transform` (`x`, `y` centre as frame fractions, `scale` 1 = fitted, `opacity`), `crop` (source fractions), `keyframes[]` (`t` from the element start, values, `ease` to the next), `anim.in`/`anim.out` (effect + length), `volume` (dB, -40 = mute), `audioFade`; `speed` is 0.1–10 |
+| Element fields | `transform` (`x`, `y` centre as frame fractions, `scale` 1 = fitted, `opacity`), `crop` (source fractions), `keyframes[]` (`t` from the element start, values, `ease` to the next), `anim.in`/`anim.out` (effect + length), `volume` (dB, -40 = mute), `audioFade`, `flip` (`h`, `v`); `speed` is 0.1–10 |
 | `main.muted` | Main track audio off |
 | `subtitles[]` | Imported SRT/VTT lines in timeline seconds (`start`, `end`, `text`) |
 | `captions.overrides{key}` | Per-caption `style` fields and `dStart`/`dEnd` timing shifts; auto captions are keyed by a word (`w:<media>:<index>`), imported ones by `s:<id>` |
@@ -120,7 +120,7 @@ Gap-free playback, measured by `npm run e2e` on the sample (presented-frame gap 
 - [x] Transitions in the preview (CSS look-alikes of `xfade`; both clips play through the overlap).
 - [x] Caption box drag/resize; per-caption style and timing ("All captions" or only the selected ones); caption fade and pop; SRT/VTT import; SRT/VTT/ASS/TXT download.
 - [x] Volume -40 (mute) to +20 dB with Web Audio in the preview; audio fades; `amix` export.
-- [x] Speed 0.1×–10× (log slider and steps, several clips at once).
+- [x] Speed 0.1×–10× (log slider and steps, several clips at once), Flip horizontal/vertical.
 - [ ] Text titles as their own layer item, rotation, thumbnails on video clips.
 - [ ] WebGL preview of colour (and exact transitions) so preview matches export.
 

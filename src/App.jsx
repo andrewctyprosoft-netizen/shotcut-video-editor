@@ -20,7 +20,7 @@ import { TopBar } from './components/TopBar.jsx';
 import { TranscriptPanel } from './components/TranscriptPanel.jsx';
 
 /** Element fields copied when a clip moves between the main track and a layer. */
-const CARRY = ['speed', 'adjust', 'transform', 'crop', 'keyframes', 'anim', 'volume', 'audioFade'];
+const CARRY = ['speed', 'adjust', 'transform', 'crop', 'keyframes', 'anim', 'volume', 'audioFade', 'flip'];
 
 export function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
@@ -171,6 +171,17 @@ export function App() {
         }
         return addItem(p, mediaId, t, { trackId: target });
       });
+    },
+    /** Mirror the selected pictures left-right ('h') or upside down ('v'); when all are mirrored, unmirror them. */
+    flipSelected(axis) {
+      const { project: p, selectedIds } = stateRef.current;
+      const ids = selectedIds.filter((id) => {
+        const f = findElement(p, id);
+        return f && isVisual(p.media[f.el.mediaId]) && f.track?.kind !== 'audio';
+      });
+      if (!ids.length) return;
+      const on = !ids.every((id) => findElement(p, id).el.flip?.[axis]);
+      edit((x) => ids.reduce((q, id) => mapElement(q, id, (el) => ({ ...el, flip: { h: false, v: false, ...el.flip, [axis]: on } })), x));
     },
     /** Speed (0.1x to 10x) of the selected video and audio clips; `coalesce` merges slider moves into one undo step. */
     setSpeed(speed, coalesce) {

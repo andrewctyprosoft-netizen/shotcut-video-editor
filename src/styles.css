@@ -232,6 +232,7 @@ fieldset.plain:disabled { opacity: 0.5; }
 .timeline { display: flex; flex-direction: column; border-top: 1px solid var(--line); background: var(--panel); min-height: 0; min-width: 0; }
 .tl-toolbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
 .tl-toolbar .grow { flex: 1; }
+.tl-toolbar > button { white-space: nowrap; flex: none; }
 .zoom { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .zoom input { width: 140px; }
 .zoom button { padding: 1px 8px; }
@@ -288,7 +289,7 @@ button.icon.danger:hover { color: var(--danger); }
 .badge.dur { right: auto; left: 6px; background: var(--accent); color: var(--accent-ink); }
 .tl-inner.dragging { cursor: grabbing; }
 .drop-marker { position: absolute; top: -4px; bottom: -4px; width: 3px; margin-left: -1px; background: #fff; border-radius: 2px; z-index: 4; }
-.tl-toolbar .hint { margin-left: 8px; }
+.tl-toolbar .hint { margin-left: 8px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cue {
   position: absolute; top: 0; height: 100%;
   background: var(--cue); border-radius: 4px; padding: 0 6px; border: 1px solid transparent;

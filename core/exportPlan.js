@@ -1,7 +1,7 @@
 // Build the FFmpeg command for exporting a project. One input per clip or item, and one filter graph:
 //   1. main track: every clip normalised to the output frame (or drawn on a black canvas when it is
 //      cropped, moved, scaled, animated, transparent or a still), joined with `xfade`/`acrossfade` or `concat`;
-//   2. layer tracks, bottom first: each item cropped, scaled and `overlay`ed at its time; keyframes and
+//   2. layer tracks, bottom first: each item cropped, flipped, scaled and `overlay`ed at its time; keyframes and
 //      in/out effects become expressions in `t`, piecewise linear through the per-frame values that
 //      core/anim.js gives the preview (exact at every frame, and deterministic, unlike `sendcmd`);
 //   3. audio: main track plus every item, with volume and fades, mixed with `amix`;
@@ -92,6 +92,7 @@ export function buildExportPlan(project, opts = {}) {
         : `scale=${W}:${H}:force_original_aspect_ratio=decrease,pad=${W}:${H}:(ow-iw)/2:(oh-ih)/2:color=black`;
       const chain = [
         ...headChain(m, clip, fps),
+        ...flipFilters(clip.flip),
         fit,
         'setsar=1',
         eqFilter(clip.adjust),
@@ -337,6 +338,7 @@ function placed(m, el, duration, o) {
     `trim=duration=${num(duration)}`,
     o.offset ? `setpts=PTS-STARTPTS+${num(o.offset)}/TB` : 'setpts=PTS-STARTPTS',
     c ? `crop=${Math.max(1, Math.round(m.width * c.w))}:${Math.max(1, Math.round(m.height * c.h))}:${Math.round(m.width * c.x)}:${Math.round(m.height * c.y)}` : null,
+    ...flipFilters(el.flip),
     eqFilter(el.adjust),
     ...alpha,
     isNum(w) && isNum(h) ? `scale=w=${w}:h=${h}` : `scale=w=${q(w)}:h=${q(h)}:eval=frame`,
@@ -360,6 +362,11 @@ function geom(p) {
 function isPlain(el) {
   const t = el.transform ?? {};
   return isFullCrop(el.crop) && !isAnimated(el) && (t.x ?? 0.5) === 0.5 && (t.y ?? 0.5) === 0.5 && (t.scale ?? 1) === 1 && (t.opacity ?? 1) === 1;
+}
+
+/** Mirror filters; they run after the crop, so the cropped picture flips in place. */
+function flipFilters(flip) {
+  return [flip?.h ? 'hflip' : null, flip?.v ? 'vflip' : null].filter(Boolean);
 }
 
 /** Volume (dB) and fade-in/out filters for an element's audio. */

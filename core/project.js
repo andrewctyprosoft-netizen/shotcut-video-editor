@@ -220,6 +220,7 @@ export function elementDefaults() {
     anim: { in: null, out: null },
     volume: 0, // dB; MUTE_DB (-40) and below = mute
     audioFade: { in: 0, out: 0 },
+    flip: { h: false, v: false }, // mirror the picture left-right (h) or upside down (v)
   };
 }
 

@@ -109,7 +109,7 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
       if (!look.role) return;
       const local = clamp(t - it.start, 0, it.duration);
       const p = placeOf(it.clip, m, local, it.duration, project.fit);
-      if (p) Object.assign(s.video.style, pictureCss(p, frame));
+      if (p) Object.assign(s.video.style, pictureCss(p, frame, it.clip.flip));
       if (!s.preroll) setGain(s.video, project.main?.muted ? 0 : audioGain(it.clip, local, it.duration) * look.fade);
     });
   };
@@ -214,7 +214,7 @@ export function Player({ state, items, cues, total, dispatch, edit, onTogglePlay
             const p = placeOf(it.clip, m, clamp(time - it.start, 0, it.duration), it.duration, project.fit);
             return (
               <div key={it.clip.id} className="main-slot" style={slotLook(roles, it.clip).style}>
-                {p && <img className="el" src={mediaUrl(m.path)} alt="" crossOrigin="anonymous" draggable={false} style={{ ...pictureCss(p, frame), filter: cssFilter(it.clip) }} onPointerDown={(e) => beginDrag(e, it.clip.id, 'move')} />}
+                {p && <img className="el" src={mediaUrl(m.path)} alt="" crossOrigin="anonymous" draggable={false} style={{ ...pictureCss(p, frame, it.clip.flip), filter: cssFilter(it.clip) }} onPointerDown={(e) => beginDrag(e, it.clip.id, 'move')} />}
               </div>
             );
           })}
@@ -337,7 +337,7 @@ function LayerItem({ item, track, z, media, span, time, playing, frame, live, on
   const url = mediaUrl(media.proxyPath || media.path);
   if (kind === 'audio' || track.kind === 'audio') return <audio ref={ref} src={url} preload="auto" crossOrigin="anonymous" />;
   const p = placement(media, item.crop, elementState(item, local, span.duration), frame, 'fit');
-  const style = p ? { ...pictureCss(p, frame), zIndex: z, visibility: active && !track.hidden ? 'visible' : 'hidden', filter: cssFilter(item) } : { display: 'none' };
+  const style = p ? { ...pictureCss(p, frame, item.flip), zIndex: z, visibility: active && !track.hidden ? 'visible' : 'hidden', filter: cssFilter(item) } : { display: 'none' };
   const props = { className: 'el layer-el', style, 'data-item': item.id, onPointerDown: (e) => onDown(e, item.id), draggable: false };
   if (kind === 'video') return <video ref={ref} src={url} preload="auto" crossOrigin="anonymous" {...props} />;
   return <img src={url} alt="" crossOrigin="anonymous" {...props} />;
