@@ -130,6 +130,28 @@ test('an edit elsewhere keeps the playing clip; an edit to it reseeks', () => {
   assert.equal(videos[0].playbackRate, 2);
 });
 
+test('speeding up the playing clip moves the preloaded next clip earlier too', () => {
+  let p = projectWith(media('a', 10), media('b', 4));
+  const { engine, videos, times, load } = setup(p);
+  engine.sync(layout(p), 0.2);
+  load();
+  p = updateClip(p, p.clips[0].id, { speed: 4 }); // a now lasts 2.5 s; b starts at 2.5 instead of 10
+  engine.sync(layout(p), 0.2);
+  load();
+  assert.equal(engine.slots[1].item.start, 2.5, 'the hidden slot has the new place of b');
+  engine.play();
+  const active = engine.activeSlot;
+  videos[active].advance(0.5); // 2 source seconds at 4x: timeline 0.7
+  engine.tick();
+  videos[active].currentTime = 10;
+  videos[active].ended = true;
+  engine.tick();
+  assert.notEqual(engine.activeSlot, active, 'swapped to b');
+  videos[engine.activeSlot].advance(0.5);
+  engine.tick();
+  assert.ok(Math.abs(times.at(-1) - 3) < 1e-6, `timeline at ${times.at(-1)}, not past b's old start`);
+});
+
 test('falls back to one slot when the next clip was not preloaded', () => {
   const p = projectWith(media('a', 2), media('b', 2));
   const { engine, videos, times, load, items } = setup(p);

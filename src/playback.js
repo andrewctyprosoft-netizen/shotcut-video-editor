@@ -255,6 +255,9 @@ export class PlaybackEngine {
     if (!next || this.isStill(next.clip)) return;
     const ready = o.item?.clip === next.clip && o.url === this.urlForItem(next) && Math.abs(o.target - next.clip.in) < EPS;
     if (!ready) this.load(o, next, next.clip.in);
+    // Same clip and file, but its place may have moved (a clip before it changed speed or length): after
+    // the swap the timeline time is read from this item, so a stale start made playback jump.
+    else o.item = next;
     o.video.pause();
   }
 
