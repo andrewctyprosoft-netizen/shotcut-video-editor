@@ -1,10 +1,10 @@
 # ShotCut
 
-A local, CapCut-style video editor for Windows with layers, keyframes, accurate auto captions and text-based editing.
+A local, CapCut-style video editor for Windows, macOS and Linux with layers, keyframes, accurate auto captions and text-based editing.
 It runs offline: Electron for the window, FFmpeg for effects and export, and faster-whisper for speech to text.
 The caption pipeline is reused from Transcript QC (`05_Review_QC/Transcript QC`).
 
-Status: **0.3.0** (layers, keyframes, effects, background removal; see [docs/plan.md](docs/plan.md)). It runs from source; there is no installer yet.
+Status: **0.3.0** (layers, keyframes, effects, background removal; see [docs/plan.md](docs/plan.md)). It runs from source: one launcher per system downloads everything it needs on the first run, so a fresh PC needs nothing installed first.
 
 ![ShotCut window with layers, captions and the timeline](docs/screenshot.png)
 
@@ -41,25 +41,60 @@ Status: **0.3.0** (layers, keyframes, effects, background removal; see [docs/pla
 Not yet: thumbnails on video clips, rotation, text titles as their own layer, LUTs, audio ducking.
 See the milestones in [docs/plan.md](docs/plan.md).
 
+## Quick Start
+
+1. Download the code: on the GitHub page, **Code** > **Download ZIP**, then extract it (or `git clone` it).
+   Put it in a folder you can write to, such as Documents.
+2. Start the launcher for your system:
+
+| System | Launcher | How |
+|:-------|:---------|:----|
+| Windows 10/11 | `ShotCut.bat` | Double-click. If SmartScreen warns, **More info** > **Run anyway** |
+| macOS 12+ (Apple silicon or Intel) | `ShotCut.command` | Double-click. If macOS blocks it, right-click > **Open**, or **System Settings** > **Privacy & Security** > **Open Anyway**; or run `bash ShotCut.command` in Terminal |
+| Linux (x64 or arm64 desktop with glibc 2.35+: Ubuntu 22.04, Debian 12, Fedora 36 or newer) | `ShotCut.sh` | Run `bash ShotCut.sh` in a terminal; after the first run, ShotCut is in the applications menu |
+
+The first run sets everything up inside the app folder and takes a few minutes (about 1.5 GB to download, internet needed once):
+
+| Step | What | Size |
+|:-----|:-----|:-----|
+| Node.js 24 LTS | Portable, in `runtime/node`, checked against nodejs.org's SHA-256 list | 30 MB |
+| App components | `npm ci` (React, Vite, Electron) and the Electron runtime | 250 MB |
+| Python 3.12 | Through [uv](https://github.com/astral-sh/uv), in `runtime/python`, with faster-whisper, onnxruntime, NumPy, Pillow | 400 MB |
+| FFmpeg | Static GPL builds with libx264, libvpx and libass: [BtbN](https://github.com/BtbN/FFmpeg-Builds) on Windows, [Martin Riedl](https://ffmpeg.martin-riedl.de/) on macOS and Linux, in `runtime/ffmpeg` | 150 MB |
+| Whisper model | `Systran/faster-whisper-small`, in `runtime/models` | 480 MB |
+
+- Node.js, uv and FFmpeg are checked against their published SHA-256; Python and its packages come through uv, the model through Hugging Face's own client.
+- Later starts skip all that: the launcher rebuilds the interface (about a second), the console closes and ShotCut opens. It works offline from then on.
+- Nothing is installed system-wide, and nothing needs admin rights. To uninstall, delete the folder (and the settings folder, see Limits).
+- If a download is interrupted, start the launcher again; it carries on. If something stays broken, run it with `--repair` (e.g. `ShotCut.bat --repair`), or delete the `runtime` folder.
+- If Python or the model cannot be set up, ShotCut still opens, says so, and works without auto captions and AI background removal.
+- To open a project directly on Windows, drop a `.shotcut` file onto `ShotCut.bat`.
+- For a desktop icon on Windows: right-click `ShotCut.bat` > **Send to** > **Desktop (create shortcut)**.
+- `--setup-only` sets up and checks without opening the window.
+
+The Windows launcher is tested on Windows 11 from a clean state (no Node.js, Python or FFmpeg on PATH).
+The macOS and Linux launchers run the same setup script but have not been tried on real machines yet; reports are welcome.
+
 ## Requirements
 
-- Windows 10/11, Node.js 20+ (tested on 24).
+The launcher brings all of these. To run without it, install them yourself:
+
+- Node.js 20+ (tested on 24).
 - FFmpeg 7.1 or newer on PATH (tested on 8.1, the "full" build with libvpx), or set its path in Settings.
 - Python 3.10+ with faster-whisper: `pip install -r asr/requirements.txt`; for AI background removal also `pip install -r vision/requirements.txt` (onnxruntime, NumPy, Pillow; faster-whisper already brings onnxruntime).
-- A Whisper model. The app finds the workspace's offline copy (`hf_cache/faster-whisper-small`) automatically; otherwise set a model folder in Settings, or leave `small` to download it once.
+- A Whisper model. The app uses the launcher's copy (`runtime/models/faster-whisper-small`), or finds a workspace offline copy (`hf_cache/faster-whisper-small`) above the app folder; otherwise set a model folder in Settings, or leave `small` to download it once.
 - AI background removal downloads its model once (Silueta 43 MB by default; U²-Net human or IS-Net in Settings) into the app's `models` folder. Colour key needs nothing extra.
+- Linux: a desktop with the usual Chromium libraries (GTK 3, NSS, ALSA), which mainstream desktop distributions have.
 
-## Run
+The app looks for each tool in this order: the path in Settings, then the launcher's copy in `runtime/`, then the system (`ffmpeg` on PATH; `py -3.11`, `py -3`, `python` on Windows, `python3` elsewhere).
 
-Double-click **`ShotCut.bat`** in the app folder.
-To open a project directly, drop a `.shotcut` file onto it.
+## Run From a Terminal
 
-- The first run installs the app's components (`npm install` and the Electron runtime, about 100 MB), so it needs internet once.
-- Each launch rebuilds the interface (about a second), then the console window closes and ShotCut opens.
-- It warns if Node.js is missing, or if FFmpeg is not on PATH.
-- For a desktop icon: right-click `ShotCut.bat` > **Send to** > **Desktop (create shortcut)**.
+With Node.js, FFmpeg and Python installed yourself (or after the launcher has run once):
 
-From a terminal, the same thing is:
+```bash
+npm install
+```
 
 ```bash
 npm start
@@ -97,7 +132,9 @@ Double-click the preview background to play or pause.
 | `vision/remove_bg.py` | AI background removal: FFmpeg decodes frames, an ONNX U²-Net model makes the matte, FFmpeg encodes PNG/APNG/VP9 alpha (`vision/requirements.txt`) |
 | `dev/` | Tests, sample makers, smoke and end-to-end checks, dev server launcher |
 | `docs/plan.md` | Architecture, milestones, risks |
-| `ShotCut.bat` | Double-click launcher: installs on first run, rebuilds the interface, opens the app (CRLF, see `.gitattributes`) |
+| `ShotCut.bat`, `ShotCut.command`, `ShotCut.sh` | One-click launchers for Windows, macOS and Linux: fetch a portable Node.js into `runtime/node`, then run `setup/launch.mjs` (`.bat` CRLF, the others LF, see `.gitattributes`) |
+| `setup/launch.mjs` | First-run setup and start: npm packages, Electron, Python and packages through uv, FFmpeg, the Whisper model, all inside `runtime/`; checksums, retries, resume, `--repair`, `--setup-only` |
+| `setup/get-node.ps1` | Portable Node.js download for `ShotCut.bat` |
 
 ## Tests
 
@@ -136,7 +173,9 @@ One FFmpeg run, with the graph written to `graph.txt` (`-/filter_complex`) and F
 - GIFs animate on their own in the preview (not frame-locked to the playhead); the export is frame-exact.
 - AI background removal processes every frame on the CPU, so long videos take a while (IS-Net is the slowest); colour key is much faster. The pipeline is tested with a stand-in model; the real models download on first use. A transparent video copy is VP9 WebM, so it is larger than the original.
 - Reversed copies live in the app's `reversed` folder (`%APPDATA%\ShotCut\reversed` on Windows), one per file and range, as H.264 (CRF 16) with AAC, VP9 with alpha for transparent clips, or AAC for audio. A reversed clip can be trimmed shorter but not longer than the part that was reversed: Reverse it back, lengthen it, and reverse again.
-- Burned-in fonts must be installed on the PC (the list uses Windows fonts).
+- Burned-in fonts must be installed on the PC (the list uses Windows fonts; on macOS and Linux pick fonts you have, or libass uses a fallback).
+- Settings, AI models and the copies the app makes live in the app's data folder: `%APPDATA%\ShotCut` on Windows, `~/Library/Application Support/ShotCut` on macOS, `~/.config/ShotCut` on Linux.
+- On Linux systems that block unprivileged user namespaces (Ubuntu 23.10 and later), the launcher starts Electron with `--no-sandbox`.
 - For distribution, bundle an LGPL FFmpeg build (with libvpx); the "full" builds are GPL.
 
 ## Licence

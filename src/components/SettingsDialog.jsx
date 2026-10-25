@@ -47,11 +47,11 @@ export function SettingsDialog({ onClose }) {
           <input value={settings.ffmpeg} onChange={set('ffmpeg')} placeholder="C:\ffmpeg\bin\ffmpeg.exe" />
         </label>
         <label className="field">
-          <span>Python command (empty = auto: py -3.11, py -3, python)</span>
+          <span>Python command (empty = auto: the launcher's Python, then py -3.11, py -3, python)</span>
           <input value={settings.python} onChange={set('python')} placeholder="py -3.11" />
         </label>
         <label className="field">
-          <span>Whisper model: folder or name (empty = local Transcript QC model, else "small")</span>
+          <span>Whisper model: folder or name (empty = the launcher's model, a local Transcript QC model, else "small")</span>
           <input value={settings.model} onChange={set('model')} placeholder="E:\models\faster-whisper-small" />
         </label>
         <div className="row2">

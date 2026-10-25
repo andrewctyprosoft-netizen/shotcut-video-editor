@@ -1,15 +1,15 @@
 // Settings and external tools: where FFmpeg, Python and the Whisper model are, and whether they work.
 // No Electron imports, so tests can use it directly.
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { HARDWARE_ENCODERS, encoderArgs } from '../core/exportPlan.js';
 import { run, splitCommand } from './proc.js';
 
 export const DEFAULT_SETTINGS = {
-  ffmpeg: '', // empty = bundled tools/ffmpeg.exe, then FFMPEG_PATH, then PATH
-  python: '', // empty = first of PYTHON_CANDIDATES that can import faster_whisper
-  model: '', // empty = VCE_WHISPER_MODEL, then a workspace hf_cache copy, then "small" (downloads)
+  ffmpeg: '', // empty = FFMPEG_PATH, then the launcher's runtime/ffmpeg or tools/ffmpeg.exe, then PATH
+  python: '', // empty = the launcher's runtime/python, then the first of PYTHON_CANDIDATES that can import faster_whisper
+  model: '', // empty = VCE_WHISPER_MODEL, then the launcher's runtime/models copy, then a workspace hf_cache copy, then "small" (downloads)
   language: 'en',
   encoder: 'auto', // 'auto' = first working hardware encoder, else libx264
   cutoutModel: 'silueta', // background removal model (electron/cutout.js CUTOUT_MODELS), downloaded on first use
@@ -52,8 +52,8 @@ export function saveSettings(file, settings) {
  */
 export function resolveFfmpeg(settings, appRoot) {
   const exe = process.platform === 'win32' ? '.exe' : '';
-  const bundled = join(appRoot, 'tools', `ffmpeg${exe}`);
-  const ffmpeg = settings.ffmpeg || process.env.FFMPEG_PATH || (existsSync(bundled) ? bundled : 'ffmpeg');
+  const bundled = [join(appRoot, 'runtime', 'ffmpeg', `ffmpeg${exe}`), join(appRoot, 'tools', `ffmpeg${exe}`)].find((p) => existsSync(p));
+  const ffmpeg = settings.ffmpeg || process.env.FFMPEG_PATH || bundled || 'ffmpeg';
   const sibling = ffmpeg.replace(/ffmpeg(\.exe)?$/i, `ffprobe${exe}`);
   const ffprobe = ffmpeg !== 'ffmpeg' && existsSync(sibling) ? sibling : 'ffprobe';
   return { ffmpeg, ffprobe };
@@ -68,6 +68,8 @@ export function resolveFfmpeg(settings, appRoot) {
 export function resolveModel(settings, appRoot) {
   if (settings.model) return settings.model;
   if (process.env.VCE_WHISPER_MODEL) return process.env.VCE_WHISPER_MODEL;
+  const bundled = join(appRoot, 'runtime', 'models', 'faster-whisper-small');
+  if (existsSync(join(bundled, 'model.bin'))) return bundled;
   let dir = resolve(appRoot);
   for (let i = 0; i < 6; i++) {
     const candidate = join(dir, MODEL_DIR);
@@ -77,15 +79,38 @@ export function resolveModel(settings, appRoot) {
   return 'small';
 }
 
+/**
+ * The Python the launcher installed (runtime/python/cpython-3.x-…), or null.
+ * @param {string} [appRoot]
+ * @returns {string|null}
+ */
+export function bundledPython(appRoot) {
+  if (!appRoot) return null;
+  const base = join(appRoot, 'runtime', 'python');
+  let dirs = [];
+  try {
+    dirs = readdirSync(base).filter((d) => d.startsWith('cpython-')).sort().reverse();
+  } catch {
+    return null;
+  }
+  for (const d of dirs) {
+    const exe = process.platform === 'win32' ? join(base, d, 'python.exe') : join(base, d, 'bin', 'python3');
+    if (existsSync(exe)) return exe;
+  }
+  return null;
+}
+
 let pythonCache = null;
 
 /**
- * Find a Python that can import faster_whisper.
+ * Find a Python that can import faster_whisper: the setting, else the launcher's bundled Python, else the usual commands.
  * @param {typeof DEFAULT_SETTINGS} settings
+ * @param {string} [appRoot]
  * @returns {Promise<{command: string, ok: boolean, version: string|null, error: string|null}>}
  */
-export async function resolvePython(settings) {
-  const candidates = settings.python ? [settings.python] : PYTHON_CANDIDATES;
+export async function resolvePython(settings, appRoot) {
+  const bundled = bundledPython(appRoot);
+  const candidates = settings.python ? [settings.python] : bundled ? [`"${bundled}"`, ...PYTHON_CANDIDATES] : PYTHON_CANDIDATES;
   if (pythonCache && candidates.includes(pythonCache.command)) return pythonCache;
   let last = null;
   for (const command of candidates) {
@@ -96,7 +121,7 @@ export async function resolvePython(settings) {
         pythonCache = { command, ok: true, version: res.stdout.trim(), error: null };
         return pythonCache;
       }
-      last = { command, ok: false, version: null, error: 'faster-whisper is not installed: run  pip install -r asr/requirements.txt' };
+      last = { command, ok: false, version: null, error: 'faster-whisper is not installed: start the app with its launcher (it sets Python up), or run  pip install -r asr/requirements.txt' };
     } catch (err) {
       last ??= { command, ok: false, version: null, error: err.message };
     }
@@ -167,7 +192,7 @@ export async function toolStatus(settings, appRoot) {
   return {
     ffmpeg: { path: ffmpeg, version: await version(ffmpeg) },
     ffprobe: { path: ffprobe, version: await version(ffprobe) },
-    python: await resolvePython(settings),
+    python: await resolvePython(settings, appRoot),
     model: { value: model, local: existsSync(join(model, 'model.bin')) },
     encoders: { hardware: await detectEncoders(ffmpeg), chosen: await resolveEncoder(settings, ffmpeg) },
   };

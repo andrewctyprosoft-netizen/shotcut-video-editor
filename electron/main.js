@@ -165,7 +165,7 @@ const JOBS = {
     return { mediaId, proxyPath };
   },
   async transcribe({ mediaId, path }, signal, progress, workDir) {
-    const python = await resolvePython(settings);
+    const python = await resolvePython(settings, appRoot);
     if (!python.ok) throw new Error(python.error);
     const words = await transcribe({
       python: python.command,
@@ -180,13 +180,13 @@ const JOBS = {
     return { mediaId, words };
   },
   async align({ mediaId, text, words }, signal, _progress, workDir) {
-    const python = await resolvePython(settings);
+    const python = await resolvePython(settings, appRoot);
     if (!python.ok) throw new Error(python.error);
     return { mediaId, words: await alignTranscript({ python: python.command, asrDir, workDir, text, words, signal }) };
   },
   async cutout({ mediaId, elementId, info, method, key }, signal, progress) {
     const { ffmpeg } = resolveFfmpeg(settings, appRoot);
-    const python = method === 'ai' ? await resolvePython(settings) : null;
+    const python = method === 'ai' ? await resolvePython(settings, appRoot) : null;
     if (python && !python.ok) throw new Error(python.error);
     const userData = app.getPath('userData');
     const path = await makeCutout({

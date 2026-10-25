@@ -1,3 +1,6 @@
 # Windows batch files need CRLF line endings (labels and goto break with LF).
 *.bat text eol=crlf
 *.png binary
+# Shell launchers need LF line endings, or bash fails on the CR.
+*.sh text eol=lf
+*.command text eol=lf

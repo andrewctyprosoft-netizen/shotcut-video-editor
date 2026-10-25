@@ -11,12 +11,14 @@ import { fileURLToPath } from 'node:url';
 import { CUTOUT_MODELS, ensureModel, keyFilter, makeCutout } from '../../electron/cutout.js';
 import { probe } from '../../electron/media.js';
 import { run, splitCommand } from '../../electron/proc.js';
+import { bundledPython } from '../../electron/tools.js';
 
 const root = fileURLToPath(new URL('../..', import.meta.url));
 const ffmpeg = process.env.FFMPEG_PATH || 'ffmpeg';
 const ffprobe = ffmpeg.replace(/ffmpeg(\.exe)?$/i, 'ffprobe$1');
 const hasFfmpeg = await run(ffmpeg, ['-version']).then((r) => r.code === 0, () => false);
-const python = process.platform === 'win32' ? 'py -3.11' : 'python3';
+const bundled = bundledPython(root); // the launcher's Python, else the system one
+const python = bundled ? `"${bundled}"` : process.platform === 'win32' ? 'py -3.11' : 'python3';
 const hasOnnx = await (async () => {
   const [cmd, ...pre] = splitCommand(python);
   return run(cmd, [...pre, '-c', 'import onnxruntime, numpy, PIL']).then((r) => r.code === 0, () => false);

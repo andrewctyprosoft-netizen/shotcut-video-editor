@@ -4,6 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_SETTINGS, resolveFfmpeg } from '../../electron/tools.js';
 
 export const SPEECH = [
   'Hello and welcome to ShotCut.',
@@ -14,7 +15,7 @@ export const SPEECH = [
 const here = fileURLToPath(new URL('.', import.meta.url));
 const dir = join(here, '..', 'samples');
 mkdirSync(dir, { recursive: true });
-const ffmpeg = process.env.FFMPEG_PATH || 'ffmpeg';
+const { ffmpeg } = resolveFfmpeg(DEFAULT_SETTINGS, join(here, '..', '..')); // FFMPEG_PATH, the launcher's runtime/ffmpeg, or PATH
 const ff = (args) => execFileSync(ffmpeg, ['-hide_banner', '-loglevel', 'error', '-y', ...args], { stdio: 'inherit' });
 
 const textFile = join(dir, 'speech.txt');

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- One-click start on a fresh PC: `ShotCut.bat` (Windows), `ShotCut.command` (macOS) and `ShotCut.sh` (Linux) need nothing installed first. The first run puts a portable Node.js 24, the npm packages and Electron, Python 3.12 with faster-whisper and onnxruntime (through uv), FFmpeg and the Whisper small model into `runtime/` inside the app folder (about 1.5 GB), checking SHA-256 sums, retrying and resuming; later runs start offline. `--repair` redoes the setup, `--setup-only` skips the start. If Python or the model cannot be set up, the app still opens without auto captions.
+- The app uses the launcher's FFmpeg, Python and Whisper model when no path is set in Settings, before looking on PATH.
 - Fix: a fresh `pip install -r asr/requirements.txt` now gets PyAV 19, which removed an argument faster-whisper 1.2.1 still passes, so every transcription failed (`open() got an unexpected keyword argument 'metadata_errors'`). PyAV is pinned below 19.
 - Export: when any clip or item has its volume above 0 dB, the final mix goes through a peak limiter (`alimiter`, −1 dBFS ceiling, 5 ms look-ahead, latency-compensated). A +11 dB boost on an already loud recording clipped about 200 times a minute; now it stays clean and loud. Exports at 0 dB or below are unchanged.
 - Speed from 0.1× to 10× (was 0.25–4× in a list): a slider with 1× in the middle, one-click steps and a typed value in the Clip tab; it changes every selected video and audio clip at once, and keyframes move with the picture. Sound keeps its pitch in the preview and the export.

@@ -11,7 +11,7 @@ import { DEFAULT_SETTINGS, resolveModel, resolvePython } from '../../electron/to
 
 const appRoot = fileURLToPath(new URL('../..', import.meta.url));
 const sample = join(appRoot, 'dev', 'samples', 'speech.wav');
-const python = await resolvePython(DEFAULT_SETTINGS);
+const python = await resolvePython(DEFAULT_SETTINGS, appRoot);
 const model = resolveModel(DEFAULT_SETTINGS, appRoot);
 const skip = !existsSync(sample) ? 'run npm run samples first'
   : !python.ok ? python.error

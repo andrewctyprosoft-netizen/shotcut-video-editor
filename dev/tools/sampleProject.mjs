@@ -60,7 +60,7 @@ async function baseProject() {
 
   const wordsFile = join(samples, 'talk.words.json');
   if (!existsSync(wordsFile)) {
-    const python = await resolvePython(DEFAULT_SETTINGS);
+    const python = await resolvePython(DEFAULT_SETTINGS, root);
     if (!python.ok) throw new Error(python.error);
     console.log('transcribing talk.mp4 ...');
     const words = await transcribe({
