@@ -109,6 +109,7 @@ test('export: layers, keyframes, effects, GIF, alpha and audio mix', { skip: !ha
   const before = await vol(0.2, 0.6);
   const mixed = await vol(1.5, 1);
   const tail = await vol(3.1, 0.3);
-  assert.ok(mixed > before + 1, `music adds level: ${before} -> ${mixed} dB`);
+  // Music 6 dB under a tone of the same level adds a quarter of its power: +0.97 dB (FFmpeg 8.1 and 9.0 differ by 0.1 dB).
+  assert.ok(mixed > before + 0.5, `music adds level: ${before} -> ${mixed} dB`);
   assert.ok(tail > -40, `music continues after the main track: ${tail} dB`);
 });
