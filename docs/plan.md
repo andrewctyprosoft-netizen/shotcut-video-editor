@@ -1,6 +1,6 @@
 # ShotCut — Plan
 
-A local, CapCut-style video editor for Windows built from free, open-source parts.
+A local, CapCut-style video editor for Windows, macOS and Linux built from free, open-source parts.
 Its edge over other free editors: accurate captions and text-based editing, reusing the Transcript QC pipeline (faster-whisper word timings plus clean-transcript alignment).
 
 ## Goals
